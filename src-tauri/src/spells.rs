@@ -47,7 +47,7 @@ pub struct Book {
     pub overlay_opacity: f64,
 }
 fn default_overlay_color() -> String {
-    "#06040e".into()
+    "#050506".into()
 }
 fn default_overlay_opacity() -> f64 {
     0.9

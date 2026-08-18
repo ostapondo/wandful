@@ -73,7 +73,7 @@ fn get_book(state: State<AppState>) -> Book {
 }
 
 #[tauri::command]
-fn save_spell(state: State<AppState>, mut spell: Spell) -> Result<Book, String> {
+fn save_spell(app: AppHandle, state: State<AppState>, mut spell: Spell) -> Result<Book, String> {
     if spell.points.len() < 4 {
         return Err("Draw a longer rune".into());
     }
@@ -103,6 +103,9 @@ fn save_spell(state: State<AppState>, mut spell: Spell) -> Result<Book, String> 
         book.spells.push(spell);
     }
     book.save(&state.path)?;
+    // The overlay can save too (binding a rune nobody matched); keep the
+    // spellbook window in step.
+    let _ = app.emit_to("main", "book:changed", book.clone());
     Ok(book.clone())
 }
 
@@ -160,6 +163,16 @@ fn register_hotkey(app: &AppHandle, chord: &str) -> Result<(), String> {
         .map_err(|e| format!("{e}"))?;
     gs.on_shortcut(sc, |app, _sc, ev| {
         if ev.state == ShortcutState::Pressed {
+            // The new-spell panel holds something the user typed; the hotkey
+            // does not throw it away (Esc, Cancel and the tray still do).
+            if app
+                .state::<AppState>()
+                .hook
+                .overlay_panel
+                .load(Ordering::SeqCst)
+            {
+                return;
+            }
             toggle_wand(app);
         }
     })
@@ -214,7 +227,14 @@ fn reset_settings(app: AppHandle, state: State<AppState>) -> Result<Book, String
         log::error!("hotkey re-register failed: {e}");
     }
     book.save(&state.path)?;
-    let _ = app.emit_to("overlay", "overlay:style", OverlayStyle { color: book.overlay_color.clone(), opacity: book.overlay_opacity });
+    let _ = app.emit_to(
+        "overlay",
+        "overlay:style",
+        OverlayStyle {
+            color: book.overlay_color.clone(),
+            opacity: book.overlay_opacity,
+        },
+    );
     Ok(book.clone())
 }
 
@@ -304,7 +324,12 @@ fn app_icon(state: State<AppState>, path: String) -> Option<String> {
         return hit.clone();
     }
     use base64::Engine;
-    let icon = extract_app_icon(&path).map(|b| format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(b)));
+    let icon = extract_app_icon(&path).map(|b| {
+        format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(b)
+        )
+    });
     state.icon_cache.lock().unwrap().insert(path, icon.clone());
     icon
 }
@@ -320,15 +345,17 @@ fn extract_app_icon(path: &str) -> Option<Vec<u8>> {
         // pick the representation closest to 128px
         let mut best: Option<(i64, objc2::rc::Retained<NSBitmapImageRep>)> = None;
         for rep in reps.iter() {
-            let rep: objc2::rc::Retained<NSBitmapImageRep> = objc2::rc::Retained::cast_unchecked(rep);
+            let rep: objc2::rc::Retained<NSBitmapImageRep> =
+                objc2::rc::Retained::cast_unchecked(rep);
             let w = rep.pixelsWide() as i64;
             let d = (w - 128).abs();
-            if best.as_ref().map_or(true, |(bd, _)| d < *bd) {
+            if best.as_ref().is_none_or(|(bd, _)| d < *bd) {
                 best = Some((d, rep));
             }
         }
         let (_, rep) = best?;
-        let data = rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())?;
+        let data = rep
+            .representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())?;
         Some(data.to_vec())
     }
 }
@@ -340,7 +367,9 @@ fn extract_app_icon(path: &str) -> Option<Vec<u8>> {
         path.replace('\'', "''"),
         tmp.display()
     );
-    let _ = std::process::Command::new("powershell").args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script]).output();
+    let _ = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+        .output();
     let png = std::fs::read(&tmp).ok();
     let _ = std::fs::remove_file(&tmp);
     png
@@ -413,12 +442,35 @@ fn set_key_capture(state: State<AppState>, on: bool) {
     state.hook.capture_keys.store(on, Ordering::SeqCst);
     if on {
         // Safety net: never swallow the keyboard for more than a few seconds.
+        // The generation guard keeps an old timer from ending a newer capture.
+        let gen = state.hook.capture_gen.fetch_add(1, Ordering::SeqCst) + 1;
         let hook = state.hook.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_secs(8));
-            hook.capture_keys.store(false, Ordering::SeqCst);
+            if hook.capture_gen.load(Ordering::SeqCst) == gen {
+                hook.capture_keys.store(false, Ordering::SeqCst);
+            }
         });
     }
+}
+
+/// The overlay reports when its new-spell panel (or a native dialog it opened)
+/// is up, so Escape reaches the panel instead of sheathing the wand.
+#[tauri::command]
+fn set_overlay_panel(app: AppHandle, state: State<AppState>, on: bool) {
+    state.hook.overlay_panel.store(on, Ordering::SeqCst);
+    // On Windows the overlay is a no-activate window so it never steals focus
+    // while you draw; the panel needs the keyboard, so it becomes focusable
+    // only for as long as it is up.
+    #[cfg(not(target_os = "macos"))]
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.set_focusable(on);
+        if on {
+            let _ = overlay.set_focus();
+        }
+    }
+    #[cfg(target_os = "macos")]
+    let _ = app;
 }
 
 /// Key synthesis touches Cocoa/TIS APIs that must run on the main queue.
@@ -507,6 +559,9 @@ fn activate_pid(pid: i32) {
 fn set_wand_mode(app: &AppHandle, on: bool) {
     let state = app.state::<AppState>();
     let was_on = state.hook.wand_on.swap(on, Ordering::SeqCst);
+    if !on {
+        state.hook.overlay_panel.store(false, Ordering::SeqCst);
+    }
     if let Some(overlay) = app.get_webview_window("overlay") {
         if on {
             // Remember who was in front so we can hand focus back when casting.
@@ -590,7 +645,10 @@ fn spawn_worker(app: AppHandle, rx: mpsc::Receiver<Msg>) {
                         let _ = app.emit("wand:hook-error", e);
                     }
                     Msg::KeyChord { mods, key } => {
-                        let _ = app.emit_to("main", "wand:key", KeyChord { mods, key });
+                        // Both windows may be recording a shortcut: the spellbook
+                        // form, or the overlay's new-spell panel. Each ignores
+                        // chords while it is not listening.
+                        let _ = app.emit("wand:key", KeyChord { mods, key });
                     }
                 }
             }
@@ -637,6 +695,7 @@ pub fn run() {
             get_wand,
             set_wand,
             set_key_capture,
+            set_overlay_panel,
             set_settings,
             reset_settings,
             cast,

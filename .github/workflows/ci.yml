@@ -30,6 +30,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1 (stable)
         with:
@@ -71,7 +72,7 @@ jobs:
           node-version: 20
           cache: npm
       # tauri-build's build.rs wants ../dist to exist.
-      - run: npm ci && npm run build
+      - run: npm ci && npm test && npm run build
       - run: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
       - run: cargo test

@@ -27,6 +27,7 @@ Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 ```sh
 git clone https://github.com/ostapondo/wandful && cd wandful
 npm ci
+npm test                                            # frontend unit + component tests
 npm run build                                       # tsc + vite: the frontend compiles
 (cd src-tauri && cargo fmt --check)                 # formatting
 (cd src-tauri && cargo clippy --all-targets -- -D warnings)   # lints
@@ -57,9 +58,9 @@ Roughly in order of how much of the repo you have to hold in your head:
   Rust with no platform code. Better resampling, a `$P` or `$Q` variant,
   multi-stroke runes — each is a change with a unit test next to it and no
   desktop session required.
-- **The spellbook UI.** `src/settings.ts`, vanilla TypeScript. `npm run dev`
-  previews it in a browser against `src/mock.ts`, so no Rust toolchain is
-  needed to work on it.
+- **The spellbook UI.** `src/components/` (React + zustand). `npm run dev`
+  previews it in a browser against `src/api/mock.ts`, so no Rust toolchain
+  is needed to work on it; `npm test` runs the component tests.
 - **A platform.** Linux is not built or tested. `rdev` supports X11, so a
   first report of what happens under `tauri dev` on Linux is worth an issue on
   its own.
@@ -146,7 +147,8 @@ however good it is. This list exists so nobody spends a weekend on one.
 - Accounts, cloud sync, telemetry, analytics or crash reporting.
 - Any outbound network connection. There is none today, and an update check,
   if one is ever added, will be the only one.
-- A frontend framework. The two windows are vanilla TypeScript on purpose.
+- A heavier frontend stack. The spellbook is React + zustand; the overlay is
+  plain TypeScript on purpose. No CSS framework, no router, no UI kit.
 - Renaming the project or introducing another name for it. It is Wandful.
 
 Everything outside that list is open, including things already built. If you

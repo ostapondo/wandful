@@ -4,97 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wandful</title>
-    <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <canvas id="stars"></canvas>
-    <div class="glow"></div>
-
-    <div class="titlebar" data-tauri-drag-region>
-      <div class="title" data-tauri-drag-region>
-        <canvas id="brand-wand" width="22" height="22"></canvas>
-        <span data-tauri-drag-region>Wandful</span>
-      </div>
-      <div class="tb-right">
-        <span id="wand-state" class="wand-state" data-tauri-drag-region></span>
-        <button id="open-settings" class="icon-btn" title="Settings">⚙ Settings</button>
-      </div>
-    </div>
-
-    <div id="banner" class="banner hidden"></div>
-
-    <div class="app">
-      <aside class="side">
-        <div class="side-head">
-          <span>Spells</span>
-          <button id="new" class="icon-btn" title="New spell">+</button>
-        </div>
-        <ul id="spells" class="spells"></ul>
-        <div class="side-foot">
-          <div class="slider">
-            <span>Strictness</span>
-            <input id="threshold" type="range" min="0.5" max="0.98" step="0.01" />
-            <b id="threshold-val">0.80</b>
-          </div>
-          <div class="hint">Hotkey <kbd id="hotkey">⌘⇧M</kbd></div>
-        </div>
-      </aside>
-
-      <section class="detail">
-        <div class="forge-wrap">
-          <canvas id="forge"></canvas>
-          <div id="forge-hint" class="forge-hint">Draw a rune here</div>
-        </div>
-        <div class="fields">
-          <input id="name" type="text" placeholder="Spell name" maxlength="40" spellcheck="false" />
-          <div class="seg" id="kind">
-            <button type="button" data-kind="shortcut" class="on">Shortcut</button>
-            <button type="button" data-kind="app">Open app</button>
-          </div>
-          <button id="shortcut" class="keybtn" type="button">Shortcut…</button>
-          <button id="app" class="keybtn hidden" type="button">Choose application…</button>
-        </div>
-        <div class="actions">
-          <div class="left">
-            <button id="clear" class="ghost">Clear</button>
-            <button id="test" class="ghost">Test</button>
-            <span id="test-result" class="msg"></span>
-          </div>
-          <div class="right">
-            <button id="delete" class="ghost danger hidden">Delete</button>
-            <button id="save" class="primary">Save spell</button>
-          </div>
-        </div>
-        <div id="status" class="status">Click the menu-bar icon (or press the hotkey), then hold a mouse button and draw a rune.</div>
-      </section>
-    </div>
-
-    <div id="sheet" class="sheet hidden">
-      <div class="sheet-card">
-        <div class="sheet-head"><span>Settings</span><button id="close-settings" class="icon-btn">✕</button></div>
-        <label class="row-field">
-          <span>Overlay colour</span>
-          <span class="color-wrap"><input id="ov-color" type="color" /><span id="ov-swatch" class="swatch"></span></span>
-        </label>
-        <label class="row-field">
-          <span>Overlay opacity</span>
-          <span class="range-wrap"><input id="ov-opacity" type="range" min="0.2" max="1" step="0.01" /><b id="ov-opacity-val">0.90</b></span>
-        </label>
-        <label class="row-field">
-          <span>Summon hotkey</span>
-          <button id="hotkey-btn" class="keybtn" type="button">Hotkey…</button>
-        </label>
-        <div class="row-field preview-row">
-          <span>Preview</span>
-          <div id="ov-preview" class="ov-preview"><i></i></div>
-        </div>
-        <div class="sheet-foot">
-          <span id="settings-msg" class="msg"></span>
-          <button id="reset-settings" class="ghost">Reset to defaults</button>
-        </div>
-      </div>
-    </div>
-
-    <script type="module" src="/src/settings.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

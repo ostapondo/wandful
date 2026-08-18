@@ -8,8 +8,8 @@ may change the spellbook format — the changelog says so when they do.
 ## [Unreleased]
 
 ### Added
-- Pixel-art wand that follows the cursor; hold the right mouse button and draw
-  a rune, release to cast the bound shortcut.
+- Pixel-art wand that follows the cursor: summon it, hold a mouse button and
+  draw a rune, release to cast the bound shortcut.
 - `$1 Unistroke` recognizer with a per-spellbook strictness setting.
 - Spellbook window: draw a rune, name it, record a shortcut or pick an app to
   open, save. Spells live in `spellbook.json` in the app config directory.
@@ -18,8 +18,13 @@ may change the spellbook format — the changelog says so when they do.
 - macOS: Accessibility check with a banner and a listen-only fallback; helper
   scripts to sign builds with a stable self-signed identity so the permission
   survives rebuilds.
-- Windows: full-screen click-through overlay on the primary monitor.
+- Windows: full-screen overlay on the primary monitor, shown only while the
+  wand is out.
 - Open-source scaffolding: CI, release workflow, issue and PR templates,
   contributing guide, security policy, code of conduct.
+- Bind a rune from the overlay: when a stroke matches nothing, the wand offers
+  "Make it a spell" (or `N`) and a small panel names and binds it on the spot.
+  Cast and fizzle outcomes show as a quiet chip under the stroke; the rune
+  itself is drawn on the same pixel grid as the sparks.
 
 [Unreleased]: https://github.com/ostapondo/wandful/commits/main

@@ -1,13 +1,16 @@
 //! Global keyboard hook (rdev). Two jobs:
-//! * while the spellbook records a shortcut, swallow key events and report
-//!   them as chords so OS / other apps' hotkeys don't fire;
-//! * while the wand is out, Escape cancels casting.
+//! * while a shortcut is being recorded (spellbook form or the overlay's
+//!   new-spell panel), swallow key events and report them as chords so OS /
+//!   other apps' hotkeys don't fire;
+//! * while the wand is out, Escape cancels casting — unless the overlay has
+//!   its panel (or a native dialog) open, in which case keys pass through and
+//!   the web view decides.
 //!
 //! Mouse handling lives in the overlay webview itself (it is hit-testable
 //! while the wand is out), so no mouse interception is needed here.
 
 use rdev::{Event, EventType, Key};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -32,6 +35,12 @@ pub struct HookState {
     pub wand_on: AtomicBool,
     /// While true, keyboard events are swallowed and reported as chords.
     pub capture_keys: AtomicBool,
+    /// Bumped on every capture start; the safety-net timer only clears the
+    /// capture it was started for.
+    pub capture_gen: AtomicU64,
+    /// The overlay has its new-spell panel or a native dialog up: Escape must
+    /// reach it instead of sheathing the wand.
+    pub overlay_panel: AtomicBool,
     mods: Mutex<Mods>,
 }
 
@@ -40,6 +49,8 @@ impl HookState {
         Arc::new(HookState {
             wand_on: AtomicBool::new(false),
             capture_keys: AtomicBool::new(false),
+            capture_gen: AtomicU64::new(0),
+            overlay_panel: AtomicBool::new(false),
             mods: Mutex::new(Mods::default()),
         })
     }
@@ -134,18 +145,29 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
         _ => return true,
     };
 
-    // Escape cancels casting while the wand is out.
-    if state.wand_on.load(Ordering::SeqCst) && key == Key::Escape {
-        if down {
-            let _ = tx.send(Msg::Cancel);
+    let capturing = state.capture_keys.load(Ordering::SeqCst);
+
+    if key == Key::Escape {
+        if capturing {
+            // Escape while recording belongs to the recorder (a bare Escape
+            // ends the recording; with modifiers it is a chord like any other),
+            // and must never fall through to "sheathe the wand". Handled by
+            // the capture branch below.
+        } else if state.wand_on.load(Ordering::SeqCst)
+            && !state.overlay_panel.load(Ordering::SeqCst)
+        {
+            // Escape cancels casting while the wand is out — unless the
+            // overlay's panel or a dialog is up, then the web view handles it.
+            if down {
+                let _ = tx.send(Msg::Cancel);
+            }
+            return false;
         }
-        return false;
     }
 
     // Track modifiers at all times so releases that arrive after capture ends
     // don't leave stale state behind.
     let mut m = state.mods.lock().unwrap();
-    let capturing = state.capture_keys.load(Ordering::SeqCst);
     match key {
         Key::MetaLeft | Key::MetaRight => m.meta = down,
         Key::ControlLeft | Key::ControlRight => m.ctrl = down,
@@ -208,4 +230,96 @@ pub fn spawn(state: Arc<HookState>, tx: Sender<Msg>) {
             }
         })
         .expect("spawn hook thread");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc::{channel, Receiver};
+    use std::time::SystemTime;
+
+    fn ev(key: Key, down: bool) -> Event {
+        Event {
+            time: SystemTime::now(),
+            name: None,
+            event_type: if down {
+                EventType::KeyPress(key)
+            } else {
+                EventType::KeyRelease(key)
+            },
+        }
+    }
+    fn setup() -> (Arc<HookState>, Sender<Msg>, Receiver<Msg>) {
+        let (tx, rx) = channel();
+        (HookState::new(), tx, rx)
+    }
+    fn chord(rx: &Receiver<Msg>) -> Option<(Vec<String>, String)> {
+        match rx.try_recv() {
+            Ok(Msg::KeyChord { mods, key }) => Some((mods, key)),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn idle_keys_pass_through() {
+        let (st, tx, rx) = setup();
+        assert!(handle(&st, &tx, &ev(Key::KeyA, true)));
+        assert!(handle(&st, &tx, &ev(Key::Escape, true)));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn escape_sheathes_the_wand_when_out() {
+        let (st, tx, rx) = setup();
+        st.wand_on.store(true, Ordering::SeqCst);
+        assert!(!handle(&st, &tx, &ev(Key::Escape, true)));
+        assert!(matches!(rx.try_recv(), Ok(Msg::Cancel)));
+        // the release is swallowed too, silently
+        assert!(!handle(&st, &tx, &ev(Key::Escape, false)));
+        assert!(rx.try_recv().is_err());
+        // other keys still reach the overlay (typing a spell name)
+        assert!(handle(&st, &tx, &ev(Key::KeyN, true)));
+    }
+
+    #[test]
+    fn escape_reaches_the_overlay_while_its_panel_is_open() {
+        let (st, tx, rx) = setup();
+        st.wand_on.store(true, Ordering::SeqCst);
+        st.overlay_panel.store(true, Ordering::SeqCst);
+        assert!(handle(&st, &tx, &ev(Key::Escape, true)));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn recording_swallows_and_reports_a_chord_once() {
+        let (st, tx, rx) = setup();
+        st.capture_keys.store(true, Ordering::SeqCst);
+        assert!(!handle(&st, &tx, &ev(Key::MetaLeft, true)));
+        assert!(!handle(&st, &tx, &ev(Key::ShiftLeft, true)));
+        assert!(!handle(&st, &tx, &ev(Key::KeyS, true)));
+        assert_eq!(
+            chord(&rx),
+            Some((vec!["Cmd".into(), "Shift".into()], "S".into()))
+        );
+        // one chord per capture: the keyboard is released right away
+        assert!(!st.capture_keys.load(Ordering::SeqCst));
+        assert!(handle(&st, &tx, &ev(Key::KeyS, false)));
+        assert!(handle(&st, &tx, &ev(Key::ShiftLeft, false)));
+        assert!(handle(&st, &tx, &ev(Key::MetaLeft, false)));
+        // modifier releases after capture ended left no stale state behind
+        st.capture_keys.store(true, Ordering::SeqCst);
+        assert!(!handle(&st, &tx, &ev(Key::KeyZ, true)));
+        assert_eq!(chord(&rx), Some((vec![], "Z".into())));
+    }
+
+    #[test]
+    fn escape_while_recording_ends_the_recording_not_the_wand() {
+        let (st, tx, rx) = setup();
+        st.wand_on.store(true, Ordering::SeqCst);
+        st.capture_keys.store(true, Ordering::SeqCst);
+        assert!(!handle(&st, &tx, &ev(Key::Escape, true)));
+        assert_eq!(chord(&rx), Some((vec![], "Escape".into())));
+        assert!(!st.capture_keys.load(Ordering::SeqCst));
+        assert!(rx.try_recv().is_err(), "no Cancel was sent");
+    }
 }

@@ -26,7 +26,7 @@
         "visible": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "backgroundColor": "#0d0a19"
+        "backgroundColor": "#09090b"
       }
     ],
     "security": {

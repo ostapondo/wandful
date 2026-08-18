@@ -1,7 +1,5 @@
-<h1 align="center">Wandful</h1>
-
-<p align="center"><strong>A magic wand for your desktop. Hold the right mouse button,
-draw a rune, and the shortcut you bound to it is cast.</strong><br>
+<p align="center"><strong>A magic wand for your desktop. Summon it, draw a rune,
+and the shortcut you bound to it is cast.</strong><br>
 <sub>Shortcuts are spells. The set you keep is your spellbook. Drawing one is a swish.</sub></p>
 
 <p align="center">
@@ -12,6 +10,8 @@ draw a rune, and the shortcut you bound to it is cast.</strong><br>
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-ffc531?style=flat-square">
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ostapondo/wandful/ci.yml?style=flat-square&label=CI">
 </p>
+
+<h1 align="center">Wandful</h1>
 
 <p align="center">
   <img src="docs/wand.gif" width="360"
@@ -26,10 +26,12 @@ whatever app — you want. One small binary, a native window, no accounts, no
 network.
 
 - **A wand that follows the cursor.** Summon it from the tray, the spellbook
-  window, or with `⌘⇧M` / `Ctrl+Shift+M` (changeable in Settings). Sparks trail
-  behind it while you draw.
-- **Right-drag is a gesture, right-click is still a click.** A right button
-  press without movement reaches the app under the cursor as usual.
+  window, or with `⌘⇧M` / `Ctrl+Shift+M` (changeable in Settings). The screen
+  dims, the wand appears, and sparks trail behind it while you draw.
+- **Nothing is intercepted while the wand is away.** Your mouse and keyboard
+  behave exactly as before; Wandful only steps in while the overlay is up (and
+  for the moment you record a shortcut). A plain click, `Esc`, or the close
+  button sheathes the wand again.
 - **Any rune you like.** The `$1 Unistroke` recognizer is rotation-, scale- and
   position-invariant, so a rune is whatever shape you can repeat. A strictness
   setting decides how close it has to be.
@@ -68,8 +70,8 @@ Global mouse hooks and key synthesis need **Accessibility**:
 System Settings → Privacy & Security → Accessibility → enable **Wandful**.
 In `tauri dev` the permission goes to whatever launched the process (Terminal,
 VS Code, iTerm) — enable that instead, then restart. Without it the app shows a
-banner and falls back to listen-only mode: the wand still draws, but the right
-button also reaches other apps.
+banner: the wand still draws and runes are still recognised, but shortcuts
+cannot be typed into other apps.
 
 Ad-hoc signed builds get a new signature every time, and macOS forgets the
 grant. Once:
@@ -90,12 +92,15 @@ primary monitor.
 
 ## Using it
 
-1. Toggle the wand: **left-click the tray icon** (right-click opens the menu),
+1. Summon the wand: **left-click the tray icon** (right-click opens the menu),
    press `⌘⇧M` / `Ctrl+Shift+M`, or use the button in the spellbook window.
-2. Hold the **right mouse button** anywhere and draw a rune. Release, and the
-   matching spell is cast.
-3. Right-click without moving still opens the normal context menu.
-4. In the spellbook: draw a rune on the canvas, name it, click **Shortcut** and
+2. Hold **any mouse button** and draw a rune. Release, and the matching spell
+   is cast into the app you were in; the wand goes away by itself.
+3. Drew something no spell knows? The wand offers **Make it a spell** right
+   there (or press `N`): name it, press the keys or pick an app, save.
+4. Changed your mind? Click without drawing, press `Esc`, or hit the ✕ in the
+   corner.
+5. In the spellbook: draw a rune on the canvas, name it, click **Shortcut** and
    press the keys — or pick an app to open — then **Save spell**. Click a spell
    in the list to edit or delete it. The spellbook starts empty; every rune and
    shortcut is yours. **Strictness** controls how precise the rune must be.
@@ -109,21 +114,24 @@ hand — it is plain JSON.
 
 | | |
 | --- | --- |
-| **Global hook** | `rdev`, vendored and patched, watches the mouse. A right press followed by movement is grabbed as a gesture; a press without movement is replayed to the app under the cursor |
-| **Overlay** | A full-screen transparent, click-through Tauri window draws the wand and the trail on a canvas |
+| **Global hook** | `rdev`, vendored and patched, watches the keyboard only: `Esc` while the wand is out, and key chords while the spellbook records a shortcut. Nothing is grabbed while the wand is away |
+| **Overlay** | A full-screen transparent Tauri window, hidden until the wand is summoned. While it is up it takes focus, handles the mouse itself, draws the wand and the trail on a canvas, then hands focus back to the app you came from |
 | **Recognizer** | `$1 Unistroke` in ~170 lines of Rust. Runes are resampled, rotated, scaled and compared by path distance; strictness is a threshold on that score |
 | **Casting** | Shortcuts are typed with `enigo`; apps are opened with `open` / `start` |
-| **Spellbook** | A second Tauri window in vanilla TypeScript, no framework |
+| **Spellbook** | A second Tauri window: React + zustand, one small CSS file |
 
 ```
-src/                   frontend (vanilla TS)
-  wand.ts              pixel wand sprite + magic trail (shared by overlay & spellbook)
-  overlay.ts           full-screen transparent click-through overlay
-  settings.ts          spellbook UI
-  mock.ts              browser stand-in so `vite` alone previews the UI
+src/                   frontend (TypeScript, React + zustand)
+  main.tsx             spellbook entry
+  overlay/main.ts      full-screen transparent overlay (shown only while the wand is out)
+  api/                 typed Tauri bridge, shared types, browser mock (`vite` alone previews the UI)
+  state/               zustand stores: spellbook, forge, chord recorder
+  components/          spellbook UI, one file per piece
+  lib/                 pure helpers (+ tests)
+  wand/                pixel wand sprite + magic trail (shared by overlay & spellbook)
 src-tauri/src/
   lib.rs               windows, tray, hotkey, commands, worker
-  hook.rs              global mouse/keyboard hook state machine
+  hook.rs              global keyboard hook (Esc, shortcut recording)
   recognizer.rs        $1 unistroke recognizer
   spells.rs            spellbook persistence
   shortcut.rs          "Cmd+Shift+S" → key presses

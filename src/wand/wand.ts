@@ -37,8 +37,15 @@ export const GOLD = ["#ffd64f", "#fff3b0", "#ffb347", "#ffffff"];
 export const SMOKE = ["#7c7c8c", "#a3a3b5", "#5c5c6c"];
 
 type Particle = {
-  x: number; y: number; vx: number; vy: number;
-  life: number; max: number; size: number; color: string; twinkle: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  max: number;
+  size: number;
+  color: string;
+  twinkle: boolean;
 };
 
 export class Wand {
@@ -46,7 +53,6 @@ export class Wand {
   private stroke: Pt[] = [];
   private strokeAlpha = 0;
   private strokeColor = "#ff7ad9";
-  private label: { text: string; x: number; y: number; life: number; color: string } | null = null;
   private idleT = 0;
 
   cursor: Pt = { x: -100, y: -100 };
@@ -72,7 +78,6 @@ export class Wand {
     this.stroke = [p];
     this.strokeAlpha = 1;
     this.strokeColor = "#ff7ad9";
-    this.label = null;
     this.burst(p, 18, PALETTE, 2.2);
   }
 
@@ -90,27 +95,35 @@ export class Wand {
     this.stroke.push(p);
   }
 
-  end(result: { matched: boolean; name?: string | null; score?: number } | null) {
+  /** Finish the stroke. A match turns it gold with a burst; a miss lets it smoulder. */
+  end(result: { matched: boolean } | null) {
     this.casting = false;
     const tail = this.stroke[this.stroke.length - 1] ?? this.cursor;
     if (result?.matched) {
       this.strokeColor = "#ffd64f";
       for (let i = 0; i < this.stroke.length; i += 3) this.emit(this.stroke[i], 2, GOLD, 1.8, true);
       this.burst(tail, 40, GOLD, 3.2);
-      this.label = { text: `✦ ${result.name ?? "spell"}`, x: tail.x, y: tail.y, life: 1400, color: "#ffd64f" };
     } else if (result) {
       this.strokeColor = "#8a8aa0";
       for (let i = 0; i < this.stroke.length; i += 4) this.emit(this.stroke[i], 1, SMOKE, 0.6);
-      const pct = result.score ? ` ${Math.round(result.score * 100)}%` : "";
-      this.label = { text: `✗ ${result.name ? "almost " + result.name : "no spell"}${pct}`, x: tail.x, y: tail.y, life: 1100, color: "#c8c8d8" };
     }
+  }
+
+  /** Last point of the current/last stroke (where an outcome chip goes). */
+  get tail(): Pt | null {
+    return this.stroke[this.stroke.length - 1] ?? null;
+  }
+
+  /** Recolour the drawn stroke and keep it fully visible, e.g. violet for "new rune, unbound". */
+  tint(color: string) {
+    this.strokeColor = color;
+    this.strokeAlpha = 1;
   }
 
   clear() {
     this.stroke = [];
     this.strokeAlpha = 0;
     this.particles = [];
-    this.label = null;
   }
 
   private emit(p: Pt, n: number, colors: string[], speed: number, twinkle = false) {
@@ -136,9 +149,12 @@ export class Wand {
       const a = Math.random() * Math.PI * 2;
       const s = 0.6 + Math.random() * speed;
       this.particles.push({
-        x: p.x, y: p.y,
-        vx: Math.cos(a) * s, vy: Math.sin(a) * s - 0.4,
-        life: 0, max: 600 + Math.random() * 600,
+        x: p.x,
+        y: p.y,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s - 0.4,
+        life: 0,
+        max: 600 + Math.random() * 600,
         size: this.grid * (Math.random() < 0.6 ? 1 : 2),
         color: colors[(Math.random() * colors.length) | 0],
         twinkle: true,
@@ -168,7 +184,10 @@ export class Wand {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life += dt;
-      if (p.life >= p.max) { this.particles.splice(i, 1); continue; }
+      if (p.life >= p.max) {
+        this.particles.splice(i, 1);
+        continue;
+      }
       p.x += p.vx * dt * 0.06;
       p.y += p.vy * dt * 0.06;
       p.vy += 0.004 * dt * 0.06;
@@ -183,13 +202,6 @@ export class Wand {
     }
     ctx.globalAlpha = 1;
 
-    // label
-    if (this.label) {
-      this.label.life -= dt;
-      if (this.label.life <= 0) this.label = null;
-      else this.drawLabel(ctx, this.label);
-    }
-
     // wand
     if (this.visible) this.drawWand(ctx, this.cursor);
   }
@@ -197,61 +209,14 @@ export class Wand {
   private drawStroke(ctx: CanvasRenderingContext2D) {
     const g = this.grid;
     ctx.save();
+    const cells = strokeCells(this.stroke, g);
+    // one ring of dim glow cells around the rune, then the rune itself —
+    // the same pixel grid the sparks live on, no anti-aliased lines
+    ctx.fillStyle = this.strokeColor;
+    ctx.globalAlpha = this.strokeAlpha * 0.22;
+    for (const [x, y] of cells) ctx.fillRect(x - g, y - g, g * 3, g * 3);
     ctx.globalAlpha = this.strokeAlpha;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    // outer glow
-    ctx.strokeStyle = this.strokeColor;
-    ctx.globalAlpha = this.strokeAlpha * 0.28;
-    ctx.lineWidth = g * 5;
-    this.tracePath(ctx);
-    ctx.stroke();
-    // mid
-    ctx.globalAlpha = this.strokeAlpha * 0.75;
-    ctx.lineWidth = g * 2.2;
-    this.tracePath(ctx);
-    ctx.stroke();
-    // white core (pixel-snapped dots)
-    ctx.globalAlpha = this.strokeAlpha;
-    ctx.fillStyle = "#fff";
-    for (let i = 1; i < this.stroke.length; i++) {
-      const a = this.stroke[i - 1], b = this.stroke[i];
-      const d = Math.hypot(b.x - a.x, b.y - a.y);
-      const steps = Math.max(1, Math.floor(d / g));
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps;
-        const x = Math.round((a.x + (b.x - a.x) * t) / g) * g;
-        const y = Math.round((a.y + (b.y - a.y) * t) / g) * g;
-        ctx.fillRect(x, y, g, g);
-      }
-    }
-    ctx.restore();
-  }
-
-  private tracePath(ctx: CanvasRenderingContext2D) {
-    ctx.beginPath();
-    ctx.moveTo(this.stroke[0].x, this.stroke[0].y);
-    for (let i = 1; i < this.stroke.length; i++) ctx.lineTo(this.stroke[i].x, this.stroke[i].y);
-  }
-
-  private drawLabel(ctx: CanvasRenderingContext2D, l: NonNullable<typeof this.label>) {
-    ctx.save();
-    ctx.font = `${this.px * 4}px "Press Start 2P", "VT323", monospace`;
-    ctx.textBaseline = "top";
-    const pad = 6;
-    const w = ctx.measureText(l.text).width + pad * 2;
-    const h = this.px * 4 + pad * 2;
-    let x = l.x + 18, y = l.y - h - 8;
-    const cw = ctx.canvas.clientWidth || ctx.canvas.width;
-    if (x + w > cw) x = l.x - w - 18;
-    if (y < 0) y = l.y + 18;
-    ctx.globalAlpha = Math.min(1, l.life / 300);
-    ctx.fillStyle = "rgba(20, 12, 40, 0.88)";
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = l.color;
-    ctx.fillRect(x, y, w, 2);
-    ctx.fillRect(x, y + h - 2, w, 2);
-    ctx.fillText(l.text, x + pad, y + pad);
+    for (const [x, y] of cells) ctx.fillRect(x, y, g, g);
     ctx.restore();
   }
 
@@ -283,10 +248,36 @@ export class Wand {
   }
 }
 
+/** Snap a polyline to a pixel grid: the distinct g×g cells its segments pass through, in order. */
+export function strokeCells(pts: Pt[], g: number): [number, number][] {
+  const out: [number, number][] = [];
+  const seen = new Set<number>();
+  const push = (x: number, y: number) => {
+    const cx = Math.round(x / g) * g;
+    const cy = Math.round(y / g) * g;
+    const key = cx * 65536 + cy;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push([cx, cy]);
+  };
+  if (pts.length === 1) push(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1],
+      b = pts[i];
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / g));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      push(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+    }
+  }
+  return out;
+}
+
 /** Fit a canvas to its CSS size × devicePixelRatio and return a ctx scaled to CSS px. */
 export function fitCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const w = canvas.clientWidth,
+    h = canvas.clientHeight;
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -300,34 +291,36 @@ export function fitCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 /** Draw a small preview of a rune's points inside a box (for spell cards). */
 export function drawRunePreview(canvas: HTMLCanvasElement, points: [number, number][], color = "#ff7ad9") {
   const ctx = fitCanvas(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const w = canvas.clientWidth,
+    h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
   if (points.length < 2) return;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const [x, y] of points) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
-  const pad = 10;
-  const sw = Math.max(maxX - minX, 1), sh = Math.max(maxY - minY, 1);
-  const s = Math.min((w - pad * 2) / sw, (h - pad * 2) / sh);
-  const ox = (w - sw * s) / 2 - minX * s, oy = (h - sh * s) / 2 - minY * s;
-  const g = 2;
-  ctx.fillStyle = color;
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = 6; ctx.strokeStyle = color; ctx.lineJoin = "round"; ctx.lineCap = "round";
-  ctx.beginPath();
-  points.forEach(([x, y], i) => (i ? ctx.lineTo(x * s + ox, y * s + oy) : ctx.moveTo(x * s + ox, y * s + oy)));
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-  for (let i = 1; i < points.length; i++) {
-    const [ax, ay] = points[i - 1], [bx, by] = points[i];
-    const d = Math.hypot(bx - ax, by - ay) * s;
-    const steps = Math.max(1, Math.floor(d / g));
-    for (let k = 0; k <= steps; k++) {
-      const t = k / steps;
-      const x = Math.round(((ax + (bx - ax) * t) * s + ox) / g) * g;
-      const y = Math.round(((ay + (by - ay) * t) * s + oy) / g) * g;
-      ctx.fillRect(x, y, g, g);
-    }
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const [x, y] of points) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
   }
+  const pad = 10;
+  const sw = Math.max(maxX - minX, 1),
+    sh = Math.max(maxY - minY, 1);
+  const s = Math.min((w - pad * 2) / sw, (h - pad * 2) / sh);
+  const ox = (w - sw * s) / 2 - minX * s,
+    oy = (h - sh * s) / 2 - minY * s;
+  const g = 2;
+  const cells = strokeCells(
+    points.map(([x, y]) => ({ x: x * s + ox, y: y * s + oy })),
+    g,
+  );
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.25;
+  for (const [x, y] of cells) ctx.fillRect(x - g, y - g, g * 3, g * 3);
+  ctx.globalAlpha = 1;
+  for (const [x, y] of cells) ctx.fillRect(x, y, g, g);
   // start marker
   ctx.fillStyle = "#ffd64f";
   const [sx, sy] = points[0];

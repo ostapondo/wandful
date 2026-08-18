@@ -3,25 +3,84 @@
   <head>
     <meta charset="UTF-8" />
     <title>Wandful Overlay</title>
+    <link rel="stylesheet" href="/src/controls.css" />
     <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; cursor: none; user-select: none; -webkit-user-select: none; }
-      #veil { position: fixed; inset: 0; background: rgba(6, 4, 14, 0.9); opacity: 0; transition: opacity .18s ease-out; pointer-events: none; }
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; cursor: none; user-select: none; -webkit-user-select: none; font-family: var(--font); font-size: 13px; color: var(--text); -webkit-font-smoothing: antialiased; }
+      #veil { position: fixed; inset: 0; background: rgba(5, 5, 6, 0.9); opacity: 0; transition: opacity .18s ease-out; pointer-events: none; }
       body.on #veil { opacity: 1; }
-      canvas { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh; cursor: none; touch-action: none; }
-      #hint { position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%); font: 500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: rgba(236,231,250,.55); letter-spacing: .2px; pointer-events: none; opacity: 0; transition: opacity .3s; }
+      canvas#c { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh; cursor: none; touch-action: none; }
+      .hidden { display: none !important; }
+
+      #hint { position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%); font-weight: 500; color: rgba(237,237,240,.55); letter-spacing: .2px; pointer-events: none; opacity: 0; transition: opacity .3s; }
       body.on #hint { opacity: 1; }
-      #close { position: fixed; top: 44px; right: 24px; z-index: 5; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); background: rgba(20,14,40,.85); color: rgba(236,231,250,.9); padding: 0; display: flex; align-items: center; justify-content: center; cursor: none; opacity: 0; transition: opacity .3s, background .15s, transform .1s; pointer-events: none; -webkit-appearance: none; }
+      body.panel #hint, body.chip #hint { opacity: 0; }
+
+      #close { position: fixed; top: 44px; right: 24px; z-index: 5; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); background: rgba(18,18,22,.85); color: rgba(237,237,240,.9); padding: 0; display: flex; align-items: center; justify-content: center; cursor: none; opacity: 0; transition: opacity .3s, background .15s, transform .1s; pointer-events: none; -webkit-appearance: none; }
       #close svg { width: 14px; height: 14px; display: block; }
       body.on #close { opacity: 1; pointer-events: auto; }
       #close:hover { background: rgba(167,139,250,.35); border-color: rgba(167,139,250,.7); transform: scale(1.06); }
-      #hint kbd { font: inherit; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: rgba(236,231,250,.8); }
+
+      /* outcome chip: sits under the stroke's tail */
+      #chip { position: fixed; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 14px; border-radius: 10px; background: rgba(18,18,22,.92); border: 1px solid var(--line-2); box-shadow: 0 10px 30px rgba(0,0,0,.35); white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .16s, transform .16s; }
+      body.chip #chip { opacity: 1; transform: none; pointer-events: auto; }
+      #chip.cast { border-color: rgba(245,192,74,.4); }
+      #chip .star { color: var(--gold); }
+      #chip b { font-weight: 600; }
+      #chip .dim { color: var(--muted); }
+      #chip, #chip * { cursor: default; }
+
+      /* new-spell panel */
+      #panel { position: fixed; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 420px; display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 12px; background: #131316; border: 1px solid var(--line-2); box-shadow: 0 30px 80px rgba(0,0,0,.6); cursor: default; }
+      #panel * { cursor: default; }
+      #panel input, #panel button { cursor: default; }
+      .panel-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
+      .panel-head span:last-child { font-weight: 400; color: var(--muted); font-size: 12px; }
+      .panel-rune { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+      #rune { width: 96px; height: 96px; border-radius: 8px; background: rgba(0,0,0,.35); display: block; image-rendering: pixelated; }
+      .col { display: flex; flex-direction: column; gap: 8px; }
+      .note { font-size: 11px; color: var(--muted); }
+      #panel input[type="text"] { cursor: text; }
+      .row { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+      .actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+      .actions .right { display: flex; gap: 6px; }
+      button.primary:disabled { opacity: .5; }
+      button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     </style>
   </head>
   <body>
     <div id="veil"></div>
     <canvas id="c"></canvas>
-    <button id="close" title="Close (Esc)"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+    <button id="close" title="Close (Esc)" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
     <div id="hint">Hold a mouse button and draw a rune · click or press <kbd>Esc</kbd> to close</div>
-    <script type="module" src="/src/overlay.ts"></script>
+
+    <div id="chip" role="status" aria-live="polite"></div>
+
+    <div id="panel" class="hidden" role="dialog" aria-labelledby="panel-title">
+      <div class="panel-head"><span id="panel-title">New spell</span><span><kbd>Esc</kbd> closes</span></div>
+      <div class="panel-rune">
+        <canvas id="rune" aria-label="Rune preview"></canvas>
+        <div class="col">
+          <input id="name" type="text" placeholder="Spell name" maxlength="40" spellcheck="false" autocomplete="off" />
+          <div class="note">Draw this rune with the wand to cast the spell.</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="seg" id="kind">
+          <button type="button" data-kind="shortcut" class="on" aria-pressed="true">Shortcut</button>
+          <button type="button" data-kind="app" aria-pressed="false">Open app</button>
+        </div>
+        <button id="shortcut" class="keybtn" type="button">Shortcut…</button>
+        <button id="app" class="keybtn hidden" type="button">Choose application…</button>
+      </div>
+      <div class="actions">
+        <span id="msg" class="msg"></span>
+        <div class="right">
+          <button id="cancel" class="ghost" type="button">Cancel</button>
+          <button id="save" class="primary" type="button">Save spell</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/overlay/main.ts"></script>
   </body>
 </html>

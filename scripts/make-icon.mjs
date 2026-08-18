@@ -2,32 +2,37 @@
 import { deflateSync } from "node:zlib";
 import { writeFileSync } from "node:fs";
 
+// The very sprite the app draws (src/wand/wand.ts), so the icon *is* the wand:
+// wooden shaft, glowing tip at the top-left where the cursor sits, a sparkle.
 const G = [
   "................",
-  "..........Y.....",
-  ".........YWY....",
-  "..........Y..P..",
-  "........W..PP...",
-  "..........PP..Y.",
-  ".........PP.....",
-  "..Y.....PP......",
-  ".......PP.......",
-  "......PP...W....",
-  ".....HH.........",
-  "....HH..........",
-  "...HH...........",
-  "..HH............",
-  "..H.............",
+  "..w.............",
+  ".wGw............",
+  "..wBb.......Y...",
+  "...Bb...........",
+  "....Bb..........",
+  ".....Bb.....W...",
+  "......Bb........",
+  ".Y.....Bb.......",
+  "........DBb.....",
+  ".........DBb....",
+  "..........DDb...",
+  "...W.......DDb..",
+  "............DD..",
+  ".............D..",
   "................",
 ];
 const COL = {
   ".": null,
-  P: [214, 120, 255, 255], // wand shaft (purple)
-  H: [104, 62, 158, 255],  // handle (dark purple)
-  Y: [255, 214, 79, 255],  // star sparkle (gold)
-  W: [255, 255, 255, 255],
+  B: [160, 98, 45, 255],   // wood
+  b: [208, 138, 74, 255],  // wood highlight
+  D: [92, 51, 23, 255],    // dark knotted grip
+  w: [159, 245, 255, 255], // tip glow
+  G: [255, 255, 255, 255], // tip core
+  Y: [255, 214, 79, 255],  // gold spark
+  W: [255, 255, 255, 255], // sparkle
 };
-const BG = [26, 16, 46, 255];
+const BG = [9, 9, 11, 255]; // the app's black
 const S = 1024, cell = 56, off = (S - 16 * cell) / 2;
 const px = new Uint8Array(S * S * 4);
 for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {

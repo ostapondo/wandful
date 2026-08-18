@@ -6,11 +6,22 @@ guide, so read it before a second change. Naming and tone rules are in
 
 ## Layout
 
-- `src/` — the frontend, vanilla TypeScript, no framework. Two entry points:
-  `overlay.ts` (the transparent full-screen window that draws the wand) and
-  `settings.ts` (the spellbook). `wand.ts` is the sprite and trail both share.
-  `mock.ts` stands in for Tauri when `vite` runs alone, so the UI previews in
-  a browser with no Rust toolchain.
+- `src/` — the frontend: TypeScript, React + zustand, Vite. Two entry points:
+  `overlay/main.ts` (the transparent full-screen window that draws the wand;
+  deliberately framework-free, one canvas and a few pointer handlers) and
+  `main.tsx` (the spellbook, a React app). Inside:
+  - `api/` — `tauri.ts` is the only place that calls `invoke`/`listen`, typed
+    per command; `dialog.ts` is the native "choose an application" dialog;
+    `types.ts` mirrors the Rust structs; `mock.ts` stands in for Tauri when
+    `vite` runs alone, so the UI previews in a browser with no Rust toolchain.
+  - `state/` — zustand stores. `app.ts` (platform, spellbook, wand mode, status),
+    `forge.ts` (the spell being drawn/edited), `recorder.ts` (the one global
+    key-chord recorder — a vanilla store, because the overlay uses it too).
+  - `components/` — one file per piece of UI: `Spellbook`, `Forge`,
+    `SpellForm`, `SettingsSheet`, `KeyRecorderButton`, …
+  - `lib/` — pure helpers with unit tests (`keys`, `color`, `path`, `geometry`).
+  - `wand/` — `wand.ts` is the sprite and trail both windows share;
+    `replay.ts` animates a saved rune being redrawn.
 - `src-tauri/src/` — the app. `lib.rs` is the wiring: windows, tray, hotkey,
   commands, the worker thread. Behaviour lives beside it in one file per
   concern: `hook.rs` (global keyboard hook state), `recognizer.rs` (`$1`),
@@ -55,6 +66,11 @@ This is where the hours have gone.
   All mouse handling happens inside the overlay web view while it is up.
   A regression here looks like "the app ate my right click" or "my shortcut
   went to Wandful instead of the app", and is the first thing to check.
+- **Escape has three meanings, decided in `hook.rs`.** Recording a shortcut
+  → it ends the recording (reported as an `Escape` chord). The overlay's
+  new-spell panel or a native dialog is up (`set_overlay_panel`) → it passes
+  through to the web view. Otherwise, wand out → it sheathes the wand. Keep
+  that order; the panel is where a user has typed something worth keeping.
 - **The Accessibility grant is tied to the code signature.** Ad-hoc signed
   bundles get a new signature every build and lose the grant; `scripts/sign-mac.sh`
   re-signs with a stable local identity so it survives. In `tauri dev` the
@@ -67,27 +83,50 @@ This is where the hours have gone.
   elevated window unless Wandful is elevated too. Say so, do not retry.
 - The overlay covers the primary monitor. Multi-monitor is on the roadmap;
   a change there touches `create_overlay` in `lib.rs` and nothing else.
+- The overlay is a no-activate window so drawing never steals focus; the
+  new-spell panel flips it focusable for as long as it is open
+  (`set_overlay_panel`). Untested on real Windows hardware — see the
+  `needs-hardware` label.
 
 ## Frontend
 
 - Tauri commands are the only bridge. The frontend calls `invoke` and listens
   for events; it never reaches the OS itself. A new command is a `#[tauri::command]`
-  in `lib.rs`, an entry in the `generate_handler!` list, and — if `mock.ts`
-  needs it to preview — a stub there.
-- No framework, no bundler plugins beyond what Vite ships, no CSS framework.
-  Two windows do not need one.
-- The wand sprite in `wand.ts` is duplicated in `scripts/make-readme-gif.mjs`
+  in `lib.rs`, an entry in the `generate_handler!` list, a typed wrapper in
+  `src/api/tauri.ts`, and — if `mock.ts` needs it to preview — a stub there.
+- State lives in zustand stores under `src/state/`. Components subscribe with
+  selectors (`useApp((s) => s.book)`); event handlers and non-React code read a
+  fresh snapshot with `useApp.getState()`. Components do not `invoke` directly
+  and do not hold copies of the spellbook.
+- Backend writes happen on commit, not on every keystroke: sliders and colour
+  inputs keep a local draft and save on the native `change` event
+  (`useNativeChange`). Imperative canvas work (the `Wand`) stays inside its component;
+  other components talk to it through `forge.command`.
+- The overlay stays framework-free: it must be light and start instantly.
+  Nothing it imports may pull React in (check the `overlay-*.js` chunk after
+  `vite build`); shared state goes through `zustand/vanilla` stores.
+- No CSS framework. `src/controls.css` holds the tokens and the controls both
+  windows share (kbd, inputs, buttons, segments); `src/styles.css` is the
+  spellbook window, `overlay.html` carries its own few rules inline.
+- The wand sprite in `wand/wand.ts` is duplicated in `scripts/make-readme-gif.mjs`
   so the README media matches the app. If the sprite changes, regenerate it
   (`node scripts/make-readme-gif.mjs`, needs `ffmpeg`).
 
 ## Testing
 
-`cargo test` runs the unit suite. Anything with logic and no platform call —
-the recognizer, the shortcut parser, spellbook (de)serialisation — belongs
-there, with a test. The hook and the overlay need a real desktop session and
-are tested by hand: draw a rune, watch the log.
+`cargo test` runs the Rust unit suite. Anything with logic and no platform
+call — the recognizer, the shortcut parser, spellbook (de)serialisation —
+belongs there, with a test.
 
-CI runs, on macOS and Windows: `npm ci && npm run build`, `cargo fmt --check`,
+`npm test` runs the frontend suite (Vitest + jsdom + Testing Library):
+`lib/` helpers, `state/` stores, `api/mock.ts`, `wand/replay.ts`, and the
+components against the mock backend. A new component or store change comes
+with a test beside it in `__tests__/`. `npm run format` is Prettier.
+
+The hook and the overlay need a real desktop session and are tested by hand:
+draw a rune, watch the log.
+
+CI runs, on macOS and Windows: `npm ci && npm test && npm run build`, `cargo fmt --check`,
 `cargo clippy --all-targets -- -D warnings`, `cargo test`. Run the same
 before opening a pull request. Clippy at `-D warnings` is deliberate: the
 first warning to land makes the second invisible.
