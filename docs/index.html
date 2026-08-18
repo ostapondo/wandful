@@ -349,7 +349,7 @@ pre .c{color:#8f8ca0}
       <div class="rune"><canvas data-rune="circle" class="px"></canvas><b>Circle of Undo</b><span class="keys"><kbd>&#8984;</kbd><kbd>Z</kbd></span></div>
       <div class="rune"><canvas data-rune="check" class="px"></canvas><b>Check of Saving</b><span class="keys"><kbd>&#8984;</kbd><kbd>S</kbd></span></div>
       <div class="rune"><canvas data-rune="caret" class="px"></canvas><b>Summon Music</b><span class="keys"><span class="app-tag" style="font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.3);color:var(--gold-ui)">Music</span></span></div>
-      <div class="rune"><canvas data-rune="zig" class="px"></canvas><b>Bolt of Lock</b><span class="keys"><kbd>&#8963;</kbd><kbd>&#8984;</kbd><kbd>Q</kbd></span></div>
+      <div class="rune"><canvas data-rune="bolt" class="px"></canvas><b>Bolt of Lock</b><span class="keys"><kbd>&#8963;</kbd><kbd>&#8984;</kbd><kbd>Q</kbd></span></div>
     </div>
     <p class="p" style="margin-top:20px">Under the hood it is the <b>$1 Unistroke</b> recognizer &mdash; about 170 lines of Rust that resample, rotate, scale and compare the path. Small enough to read in one sitting, fast enough that you never wait for it. The demo at the top of this page runs the same algorithm.</p>
   </section>
@@ -363,14 +363,14 @@ pre .c{color:#8f8ca0}
       <div class="screen" aria-hidden="true">
         <div class="win"></div><div class="veil"></div>
         <span class="tag">wand out</span><span class="close">&#10005;</span>
-        <div class="rune-big"><canvas data-rune="zig" data-color="#a78bfa" class="px"></canvas></div>
+        <div class="rune-big"><canvas data-rune="bolt" data-color="#a78bfa" class="px"></canvas></div>
         <div class="chip on"><span>No spell matches this rune.</span><span class="pr" style="padding:5px 10px;border-radius:7px;background:#a78bfa;color:#121216;font-weight:600;font-size:12px">Make it a spell</span><span class="dim">or press <kbd>N</kbd></span></div>
       </div>
       <div class="screen" aria-hidden="true">
         <div class="win"></div><div class="veil" style="background:rgba(6,4,14,.6)"></div>
         <div class="panel">
           <div class="hd"><span>New spell</span><span><kbd>Esc</kbd> closes</span></div>
-          <div class="rw"><canvas data-rune="zig" data-color="#a78bfa" data-cell="3" class="px"></canvas><div style="display:flex;flex-direction:column;gap:6px"><div class="in">Bolt of Lock<i></i></div><span style="font-size:11px;color:#86868f">Draw this rune with the wand to cast the spell.</span></div></div>
+          <div class="rw"><canvas data-rune="bolt" data-color="#a78bfa" data-cell="3" class="px"></canvas><div style="display:flex;flex-direction:column;gap:6px"><div class="in">Bolt of Lock<i></i></div><span style="font-size:11px;color:#86868f">Draw this rune with the wand to cast the spell.</span></div></div>
           <div class="row2"><span class="seg"><span class="on">Shortcut</span><span>Open app</span></span><span class="keyb"><kbd>&#8963;</kbd><kbd>&#8984;</kbd> press the keys&hellip;</span></div>
           <div class="ft"><span class="g">Cancel</span><span class="pr">Save spell</span></div>
         </div>
@@ -392,7 +392,7 @@ pre .c{color:#8f8ca0}
           <div class="sp on"><canvas data-rune="circle" data-cell="2" class="px"></canvas><div>Circle of Undo<div class="keys"><kbd>&#8984;</kbd><kbd>Z</kbd></div></div></div>
           <div class="sp"><canvas data-rune="check" data-cell="2" class="px"></canvas><div>Check of Saving<div class="keys"><kbd>&#8984;</kbd><kbd>S</kbd></div></div></div>
           <div class="sp"><canvas data-rune="caret" data-cell="2" class="px"></canvas><div>Summon Music<div class="keys"><span style="font-size:9.5px;padding:1px 5px;border-radius:4px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.3);color:#f5c04a">Music</span></div></div></div>
-          <div class="sp"><canvas data-rune="zig" data-cell="2" class="px"></canvas><div>Bolt of Lock<div class="keys"><kbd>&#8963;</kbd><kbd>&#8984;</kbd><kbd>Q</kbd></div></div></div>
+          <div class="sp"><canvas data-rune="bolt" data-cell="2" class="px"></canvas><div>Bolt of Lock<div class="keys"><kbd>&#8963;</kbd><kbd>&#8984;</kbd><kbd>Q</kbd></div></div></div>
         </div>
         <div class="pane">
           <div class="forge"><canvas id="forge-demo" class="px"></canvas></div>
@@ -556,7 +556,7 @@ function recognize(pts, book) { if (pts.length < 4) return null; var p = normali
 // ---------- the demo spellbook ----------
 function circlePts(n) { var o = []; for (var i = 0; i <= n; i++) { var a = -Math.PI / 2 + i / n * 6.283; o.push([100 + 60 * Math.cos(a), 100 + 60 * Math.sin(a)]); } return o; }
 function linePts(c) { var o = []; for (var i = 1; i < c.length; i++) for (var k = 0; k < 12; k++) { var t = k / 12; o.push([c[i - 1][0] + (c[i][0] - c[i - 1][0]) * t, c[i - 1][1] + (c[i][1] - c[i - 1][1]) * t]); } o.push(c[c.length - 1]); return o; }
-var RUNES = { circle: circlePts(48), check: linePts([[20, 90], [60, 140], [150, 30]]), caret: linePts([[20, 140], [80, 20], [140, 140]]), zig: linePts([[20, 20], [140, 20], [20, 140], [140, 140]]) };
+var RUNES = { circle: circlePts(48), check: linePts([[20, 90], [60, 140], [150, 30]]), caret: linePts([[20, 140], [80, 20], [140, 140]]), bolt: linePts([[95, 15], [45, 90], [110, 90], [60, 165]]) };
 var BOOK = [
   { name: 'Circle of Undo', rune: 'circle', badge: '<kbd>&#8984;Z</kbd>' },
   { name: 'Check of Saving', rune: 'check', badge: '<kbd>&#8984;S</kbd>' },
