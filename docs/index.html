@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wandful — draw a rune, cast a shortcut</title>
-<meta name="description" content="A pixel-art magic wand for your desktop. Summon it, draw a shape you can repeat, and the keyboard shortcut you bound to it is typed into the app you were in — or an app opens. macOS and Windows, one small binary, no account, no cloud.">
+<meta name="description" content="A pixel-art magic wand for your desktop. Summon it, draw a shape you can repeat, and the keyboard shortcut you bound to it is typed into the app you were in — or an app opens. macOS, one small binary, no account, no cloud.">
 <link rel="icon" href="icon.png">
 <meta property="og:title" content="Wandful — draw a rune, cast a shortcut">
 <meta property="og:description" content="Shortcuts nobody remembers become shapes you can draw without looking. Summon the wand, draw, release. Nothing leaves your machine.">
@@ -315,7 +315,7 @@ pre .c{color:#8f8ca0}
     <div class="cta">
       <a class="btn dark" href="#install">Get Wandful</a>
       <a class="btn ghost" href="#how">How it works</a>
-      <p class="fine">macOS and Windows &middot; free and MIT &middot; one small binary, no account, no cloud, no telemetry</p>
+      <p class="fine">macOS &middot; free and MIT &middot; one small binary, no account, no cloud, no telemetry</p>
     </div>
     <div class="try" id="try" aria-label="A drawing area: hold the mouse button and draw a circle, a check mark or a caret to see the wand cast">
       <div class="book" aria-hidden="true">
@@ -419,7 +419,7 @@ pre .c{color:#8f8ca0}
   <section class="card glass" id="install">
     <p class="eyebrow">Get it</p>
     <h2 class="h2">Free, open, early.</h2>
-    <p class="lead">Version 0.0.1. Builds for macOS (Apple silicon and Intel) and Windows are on the releases page; each one is built by GitHub Actions and carries a provenance attestation you can check.</p>
+    <p class="lead">Version 0.0.1. Builds for macOS (Apple silicon and Intel) are on the releases page; each one is built by GitHub Actions and carries a provenance attestation you can check.</p>
     <div class="cta" style="margin-bottom:22px">
       <a class="btn dark" href="https://github.com/ostapondo/wandful/releases/latest">Download the latest release</a>
       <a class="btn ghost" href="https://github.com/ostapondo/wandful">Source on GitHub</a>
@@ -434,7 +434,7 @@ npm run tauri dev
 npm run tauri build</pre>
     <div class="grid2">
       <div class="cell"><b>macOS asks once for Accessibility</b><p>Typing a shortcut into another app and recording one without other apps&rsquo; hotkeys firing both need it. System Settings &rarr; Privacy &amp; Security &rarr; Accessibility &rarr; Wandful. Without it the wand still draws; it just can&rsquo;t cast.</p></div>
-      <div class="cell"><b>Windows needs nothing extra</b><p>Except: it can&rsquo;t send keys into a window running as Administrator unless Wandful runs as Administrator too. The overlay covers the primary monitor for now.</p></div>
+      <div class="cell"><b>Windows is on the roadmap</b><p>The code builds and runs there in theory &mdash; overlay, hook, casting are all written for it &mdash; but nobody has tried it on a real Windows machine yet, so it is not shipped. A report from one brings it back.</p></div>
     </div>
     <p class="p" style="margin-top:20px"><a href="https://github.com/ostapondo/wandful/blob/main/SECURITY.md">What the permission is used for, in checkable claims</a> &middot; <a href="https://github.com/ostapondo/wandful/blob/main/CHANGELOG.md">what changed</a> &middot; <a href="https://github.com/ostapondo/wandful/blob/main/ROADMAP.md">what&rsquo;s next</a> &middot; <a href="https://github.com/ostapondo/wandful/blob/main/CONTRIBUTING.md">how to help</a> &mdash; the most useful thing to send is a report from hardware nobody here has.</p>
   </section>
