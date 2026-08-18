@@ -10,7 +10,17 @@ pub struct Spell {
     pub id: String,
     pub name: String,
     /// e.g. "Cmd+Shift+S" / "Ctrl+Z" — tokens joined by '+'
+    #[serde(default)]
     pub shortcut: String,
+    /// "shortcut" (default) or "app"
+    #[serde(default = "default_action")]
+    pub action: String,
+    /// Path to the application to launch when `action == "app"`
+    #[serde(default)]
+    pub app_path: String,
+    /// Display name of that application
+    #[serde(default)]
+    pub app_name: String,
     pub points: Vec<Point>,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -18,6 +28,9 @@ pub struct Spell {
 
 fn default_true() -> bool {
     true
+}
+fn default_action() -> String {
+    "shortcut".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

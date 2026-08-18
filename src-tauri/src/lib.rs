@@ -36,6 +36,10 @@ struct CastResult {
     id: Option<String>,
     name: Option<String>,
     shortcut: Option<String>,
+    /// "shortcut" | "app"
+    action: Option<String>,
+    app_path: Option<String>,
+    app_name: Option<String>,
     score: f64,
 }
 
@@ -73,7 +77,11 @@ fn save_spell(state: State<AppState>, mut spell: Spell) -> Result<Book, String> 
     if spell.name.trim().is_empty() {
         return Err("Give the spell a name".into());
     }
-    if spell.shortcut.trim().is_empty() {
+    if spell.action == "app" {
+        if spell.app_path.trim().is_empty() {
+            return Err("Choose an application".into());
+        }
+    } else if spell.shortcut.trim().is_empty() {
         return Err("Choose a shortcut".into());
     }
     log::info!("save_spell {} ({} pts) -> {}", spell.name, spell.points.len(), spell.shortcut);
@@ -124,18 +132,50 @@ fn cast(app: AppHandle, state: State<AppState>, points: Vec<Point>) -> CastResul
     log::info!("cast: {} pts -> matched={} name={:?} score={:.2}", points.len(), result.matched, result.name, result.score);
     let _ = app.emit_to("main", "wand:cast", result.clone());
     if result.matched {
-        if let Some(sc) = result.shortcut.clone() {
-            let app2 = app.clone();
-            std::thread::spawn(move || {
-                // let the golden burst play, then vanish and cast
-                std::thread::sleep(Duration::from_millis(420));
-                set_wand_mode(&app2, false);
-                std::thread::sleep(Duration::from_millis(80));
-                press_on_main(&app2, sc);
-            });
-        }
+        let app2 = app.clone();
+        let r = result.clone();
+        std::thread::spawn(move || {
+            // let the golden burst play, then vanish and act
+            std::thread::sleep(Duration::from_millis(420));
+            set_wand_mode(&app2, false);
+            std::thread::sleep(Duration::from_millis(80));
+            perform(&app2, &r);
+        });
     }
     result
+}
+
+fn perform(app: &AppHandle, r: &CastResult) {
+    if r.action.as_deref() == Some("app") {
+        if let Some(path) = r.app_path.clone() {
+            if let Err(e) = launch_app(&path) {
+                log::error!("launch failed: {e}");
+            }
+        }
+    } else if let Some(sc) = r.shortcut.clone() {
+        press_on_main(app, sc);
+    }
+}
+
+fn launch_app(path: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(path).spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd").args(["/C", "start", "", path]).spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        std::process::Command::new("xdg-open").arg(path).spawn().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn launch(path: String) -> Result<(), String> {
+    launch_app(&path)
 }
 
 #[tauri::command]
@@ -236,14 +276,17 @@ fn recognize_with(book: &Book, points: &[Point]) -> CastResult {
                 id: Some(m.id.clone()),
                 name: spell.map(|s| s.name.clone()),
                 shortcut: spell.map(|s| s.shortcut.clone()),
+                action: spell.map(|s| s.action.clone()),
+                app_path: spell.map(|s| s.app_path.clone()),
+                app_name: spell.map(|s| s.app_name.clone()),
                 score: m.score,
             }
         }
         Some(m) => {
             let spell = book.spells.iter().find(|s| s.id == m.id);
-            CastResult { matched: false, id: None, name: spell.map(|s| s.name.clone()), shortcut: None, score: m.score }
+            CastResult { matched: false, id: None, name: spell.map(|s| s.name.clone()), shortcut: None, action: None, app_path: None, app_name: None, score: m.score }
         }
-        None => CastResult { matched: false, id: None, name: None, shortcut: None, score: 0.0 },
+        None => CastResult { matched: false, id: None, name: None, shortcut: None, action: None, app_path: None, app_name: None, score: 0.0 },
     }
 }
 
@@ -258,7 +301,7 @@ fn set_wand_mode(app: &AppHandle, on: bool) {
         }
     }
     if let Some(item) = state.tray_toggle.lock().unwrap().as_ref() {
-        let _ = item.set_text(if on { "✦ Wand: ON  (click to sheathe)" } else { "Wand: off  (click to summon)" });
+        let _ = item.set_text(if on { "Sheathe wand" } else { "Summon wand" });
     }
     let _ = app.emit("wand:mode", WandMode { on });
 }
@@ -338,6 +381,7 @@ pub fn run() {
     log::info!("Wandful starting");
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             get_platform,
             get_book,
@@ -353,6 +397,7 @@ pub fn run() {
             accessibility_ok,
             open_accessibility_settings,
             restart_app,
+            launch,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -396,8 +441,8 @@ pub fn run() {
             spawn_worker(handle.clone(), rx);
 
             // Tray
-            let toggle = MenuItem::with_id(app, "toggle", "Wand: off  (click to summon)", true, None::<&str>)?;
-            let book_item = MenuItem::with_id(app, "book", "Open Spellbook…", true, None::<&str>)?;
+            let toggle = MenuItem::with_id(app, "toggle", "Summon wand", true, None::<&str>)?;
+            let book_item = MenuItem::with_id(app, "book", "Spellbook…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&toggle, &book_item, &PredefinedMenuItem::separator(app)?, &quit])?;
             *app.state::<AppState>().tray_toggle.lock().unwrap() = Some(toggle);
@@ -411,9 +456,11 @@ pub fn run() {
                     "quit" => app.exit(0),
                     _ => {}
                 })
+                // Left click on the menu-bar icon = summon / sheathe the wand.
+                // Right click = the menu (spellbook, quit, ...).
                 .on_tray_icon_event(|tray, ev| {
                     if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
-                        show_spellbook(tray.app_handle());
+                        toggle_wand(tray.app_handle());
                     }
                 });
             // macOS: monochrome template icon that adapts to light/dark menu bars.

@@ -28,7 +28,7 @@ npm run tauri build
 
 ## Using it
 
-1. Toggle **Wand** in the title bar, use the tray icon, or press `⌘⇧M` / `Ctrl+Shift+M`.
+1. Toggle **Wand** in the title bar, **left-click the menu-bar icon** (right-click = menu), or press `⌘⇧M` / `Ctrl+Shift+M`.
 2. Hold the **right mouse button** anywhere and draw a rune. Release → the matching spell fires.
 3. Right-click without moving still opens the normal context menu.
 4. In the Spellbook: draw a rune in the canvas, type a name, click **Shortcut** and press the keys, **Save spell**.

@@ -1,15 +1,16 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen } from "@tauri-apps/api/event";
 import { mockInvoke, IS_TAURI } from "./mock";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 // In a plain browser (design preview) fall back to an in-memory mock.
 const invoke = (IS_TAURI ? tauriInvoke : mockInvoke) as typeof tauriInvoke;
 const listen = (IS_TAURI ? tauriListen : (async () => () => {})) as typeof tauriListen;
 import { Wand, fitCanvas, drawRunePreview, type Pt } from "./wand";
 
-type Spell = { id: string; name: string; shortcut: string; points: [number, number][]; enabled: boolean };
+type Spell = { id: string; name: string; shortcut: string; action: "shortcut" | "app"; app_path: string; app_name: string; points: [number, number][]; enabled: boolean };
 type Book = { spells: Spell[]; threshold: number; hotkey: string };
-type CastResult = { matched: boolean; id: string | null; name: string | null; shortcut: string | null; score: number };
+type CastResult = { matched: boolean; id: string | null; name: string | null; shortcut: string | null; action: string | null; app_name: string | null; score: number };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -17,6 +18,9 @@ let platform = { os: "macos", physical_coords: false };
 let book: Book = { spells: [], threshold: 0.8, hotkey: "CmdOrCtrl+Shift+M" };
 let editingId = "";
 let shortcutValue = "";
+let actionKind: "shortcut" | "app" = "shortcut";
+let appPath = "";
+let appName = "";
 let forgePoints: Pt[] = [];
 
 // ---------- sparse starfield ----------
@@ -113,6 +117,25 @@ function prettyKey(k: string) {
     : { Cmd: "Win", Up: "↑", Down: "↓", Left: "←", Right: "→", CmdOrCtrl: "Ctrl" };
   return map[k] ?? k;
 }
+function renderAction(s: { action?: string | null; shortcut?: string | null; app_name?: string | null }) {
+  return s.action === "app" ? `<span class="appchip">↗ ${escapeHtml(s.app_name || "app")}</span>` : renderKeys(s.shortcut ?? "");
+}
+function setKind(k: "shortcut" | "app") {
+  actionKind = k;
+  document.querySelectorAll<HTMLButtonElement>("#kind button").forEach((b) => b.classList.toggle("on", b.dataset.kind === k));
+  $("shortcut").classList.toggle("hidden", k !== "shortcut");
+  $("app").classList.toggle("hidden", k !== "app");
+}
+function setApp(path: string, name: string) {
+  appPath = path; appName = name;
+  const b = $("app");
+  b.classList.toggle("set", !!path);
+  b.textContent = path ? `↗ ${name}` : "Choose application…";
+}
+function baseName(p: string) {
+  const last = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? p;
+  return last.replace(/\.(app|exe|lnk)$/i, "");
+}
 function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }
 function setMsg(text: string, ok = false) { const m = $("test-result"); m.textContent = text; m.classList.toggle("ok", ok); }
 function setStatus(html: string, ok = false) { const s = $("status"); s.innerHTML = html; s.classList.toggle("ok", ok); }
@@ -125,7 +148,7 @@ function renderBook() {
     const li = document.createElement("li");
     li.className = "spell" + (s.id === editingId ? " active" : "");
     li.dataset.id = s.id;
-    li.innerHTML = `<canvas></canvas><div><div class="name">${escapeHtml(s.name)}</div><div class="keys">${renderKeys(s.shortcut)}</div></div>`;
+    li.innerHTML = `<canvas></canvas><div><div class="name">${escapeHtml(s.name)}</div><div class="keys">${renderAction(s)}</div></div>`;
     ul.appendChild(li);
     drawRunePreview(li.querySelector("canvas")!, s.points, "#c4b5fd");
     li.addEventListener("click", () => startEdit(s));
@@ -139,17 +162,15 @@ function startEdit(s: Spell) {
   editingId = s.id;
   ($("name") as HTMLInputElement).value = s.name;
   setShortcut(s.shortcut);
+  setKind(s.action === "app" ? "app" : "shortcut");
+  setApp(s.app_path ?? "", s.app_name ?? "");
   const w = forge.clientWidth, h = forge.clientHeight;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of s.points) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
   const sc = Math.min((w - 80) / Math.max(maxX - minX, 1), (h - 80) / Math.max(maxY - minY, 1));
   const ox = (w - (maxX - minX) * sc) / 2 - minX * sc, oy = (h - (maxY - minY) * sc) / 2 - minY * sc;
   forgePoints = s.points.map(([x, y]) => ({ x: x * sc + ox, y: y * sc + oy }));
-  fwand.clear();
-  fwand.start(forgePoints[0]);
-  for (const p of forgePoints.slice(1)) fwand.addPoint(p);
-  fwand.end(null);
-  fwand.visible = false;
+  replay(forgePoints);
   $("forge-hint").classList.add("hidden");
   $("delete").classList.remove("hidden");
   $("save").textContent = "Save changes";
@@ -157,12 +178,50 @@ function startEdit(s: Spell) {
   document.querySelectorAll(".spell").forEach((el) => el.classList.toggle("active", (el as HTMLElement).dataset.id === s.id));
 }
 
+// Animate a rune being drawn by the wand, start → end, like the user drew it.
+let replayToken = 0;
+function replay(pts: Pt[]) {
+  const token = ++replayToken;
+  fwand.clear();
+  if (pts.length < 2) return;
+  fwand.visible = true;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  const total = cum[cum.length - 1] || 1;
+  const dur = Math.min(2000, Math.max(600, total * 2.2));
+  const t0 = performance.now();
+  let idx = 0;
+  fwand.start(pts[0]);
+  function step(now: number) {
+    if (token !== replayToken) return;
+    const t = Math.min(1, (now - t0) / dur);
+    const target = t * total;
+    while (idx + 1 < pts.length && cum[idx + 1] <= target) { idx++; fwand.addPoint(pts[idx]); }
+    if (idx + 1 < pts.length) {
+      const a = pts[idx], b = pts[idx + 1];
+      const seg = cum[idx + 1] - cum[idx];
+      const f = seg > 0 ? (target - cum[idx]) / seg : 1;
+      fwand.cursor = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }
+    if (t < 1) requestAnimationFrame(step);
+    else {
+      while (idx + 1 < pts.length) { idx++; fwand.addPoint(pts[idx]); }
+      fwand.end(null);
+      if (!forge.matches(":hover")) fwand.visible = false;
+    }
+  }
+  requestAnimationFrame(step);
+}
+
 function resetForge() {
+  replayToken++;
   editingId = "";
   forgePoints = [];
   fwand.clear();
   ($("name") as HTMLInputElement).value = "";
   setShortcut("");
+  setKind("shortcut");
+  setApp("", "");
   $("forge-hint").classList.remove("hidden");
   $("delete").classList.add("hidden");
   $("save").textContent = "Save spell";
@@ -219,6 +278,24 @@ window.addEventListener("keydown", (e) => {
   setListening(false);
 }, true);
 
+// ---------- action kind + app picker ----------
+document.querySelectorAll<HTMLButtonElement>("#kind button").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind as "shortcut" | "app")));
+$("app").addEventListener("click", async () => {
+  try {
+    const picked = await openDialog({
+      multiple: false,
+      directory: false,
+      title: "Choose an application",
+      defaultPath: isMac() ? "/Applications" : "C:\\Program Files",
+      filters: isMac() ? [{ name: "Applications", extensions: ["app"] }] : [{ name: "Programs", extensions: ["exe", "lnk", "bat", "cmd"] }],
+    });
+    if (typeof picked === "string" && picked) setApp(picked, baseName(picked));
+  } catch {
+    const p = window.prompt("Path to application:");
+    if (p) setApp(p, baseName(p));
+  }
+});
+
 // ---------- actions ----------
 $("new").addEventListener("click", resetForge);
 $("clear").addEventListener("click", () => { forgePoints = []; fwand.clear(); $("forge-hint").classList.remove("hidden"); setMsg(""); });
@@ -232,12 +309,14 @@ $("save").addEventListener("click", async () => {
   const name = ($("name") as HTMLInputElement).value.trim();
   if (forgePoints.length < 4) { setMsg("Draw a rune first"); return; }
   if (!name) { setMsg("Name the spell"); ($("name") as HTMLInputElement).focus(); return; }
-  if (!shortcutValue) { setMsg("Pick a shortcut"); return; }
+  if (actionKind === "shortcut" && !shortcutValue) { setMsg("Pick a shortcut"); return; }
+  if (actionKind === "app" && !appPath) { setMsg("Choose an application"); return; }
   try {
-    book = await invoke<Book>("save_spell", { spell: { id: editingId, name, shortcut: shortcutValue, points: forgePoints.map((p) => [p.x, p.y]), enabled: true } });
+    const spell = { id: editingId, name, shortcut: shortcutValue, action: actionKind, app_path: appPath, app_name: appName, points: forgePoints.map((p) => [p.x, p.y]), enabled: true };
+    book = await invoke<Book>("save_spell", { spell });
     resetForge();
     renderBook();
-    setStatus(`Saved <b>${escapeHtml(name)}</b> → ${renderKeys(shortcutValue)}`, true);
+    setStatus(`Saved <b>${escapeHtml(name)}</b> → ${renderAction(spell)}`, true);
   } catch (e) { setMsg(String(e)); }
 });
 $("delete").addEventListener("click", async () => {
@@ -262,7 +341,7 @@ listen<{ on: boolean }>("wand:mode", (e) => {
 });
 listen<CastResult>("wand:cast", (e) => {
   const r = e.payload;
-  if (r.matched) { setStatus(`✦ Cast <b>${escapeHtml(r.name ?? "")}</b> → ${renderKeys(r.shortcut ?? "")} · ${Math.round(r.score * 100)}%`, true); flashSpell(r.id!); }
+  if (r.matched) { setStatus(`✦ Cast <b>${escapeHtml(r.name ?? "")}</b> → ${renderAction(r)} · ${Math.round(r.score * 100)}%`, true); flashSpell(r.id!); }
   else setStatus(r.name ? `Fizzled — closest was <b>${escapeHtml(r.name)}</b> at ${Math.round(r.score * 100)}%` : "Fizzled — no rune matched");
 });
 function showPermissionBanner() {

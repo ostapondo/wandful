@@ -48,7 +48,12 @@
         </div>
         <div class="fields">
           <input id="name" type="text" placeholder="Spell name" maxlength="40" spellcheck="false" />
-          <button id="shortcut" class="keybtn" type="button">Shortcut</button>
+          <div class="seg" id="kind">
+            <button type="button" data-kind="shortcut" class="on">Shortcut</button>
+            <button type="button" data-kind="app">Open app</button>
+          </div>
+          <button id="shortcut" class="keybtn" type="button">Shortcut…</button>
+          <button id="app" class="keybtn hidden" type="button">Choose application…</button>
         </div>
         <div class="actions">
           <div class="left">

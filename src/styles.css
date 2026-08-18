@@ -75,7 +75,11 @@ kbd { font-family: var(--font); font-size: 10.5px; padding: 1px 5px; border-radi
   background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px); background-size: 18px 18px; }
 .forge-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); pointer-events: none; font-size: 13px; }
 
-.fields { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.fields { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; height: 34px; background: rgba(0,0,0,.28); }
+.seg button { font-family: var(--font); font-size: 12px; color: var(--muted); background: transparent; border: 0; padding: 0 12px; cursor: pointer; }
+.seg button.on { color: var(--text); background: rgba(167,139,250,.18); }
+.appchip { font-size: 10.5px; padding: 1px 6px; border-radius: 4px; background: rgba(245,192,74,.12); border: 1px solid rgba(245,192,74,.3); color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; display: inline-block; }
 input[type="text"], .keybtn {
   font-family: var(--font); font-size: 13px; color: var(--text); background: rgba(0,0,0,.28);
   border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; outline: none; height: 34px;

@@ -7,8 +7,9 @@ const mac = navigator.platform.toLowerCase().includes("mac");
 const P = mac ? "Cmd" : "Ctrl";
 let book = {
   spells: [
-    { id: "1", name: "Circle of Undo", shortcut: `${P}+Z`, points: circle, enabled: true },
-    { id: "2", name: "Check of Saving", shortcut: `${P}+S`, points: line([[20, 90], [60, 140], [150, 30]]), enabled: true },
+    { id: "1", name: "Circle of Undo", shortcut: `${P}+Z`, action: "shortcut", app_path: "", app_name: "", points: circle, enabled: true },
+    { id: "2", name: "Check of Saving", shortcut: `${P}+S`, action: "shortcut", app_path: "", app_name: "", points: line([[20, 90], [60, 140], [150, 30]]), enabled: true },
+    { id: "3", name: "Summon Spotify", shortcut: "", action: "app", app_path: "/Applications/Spotify.app", app_name: "Spotify", points: line([[20, 140], [80, 20], [140, 140]]), enabled: true },
   ],
   threshold: 0.8,
   hotkey: "CmdOrCtrl+Shift+M",
@@ -32,7 +33,7 @@ export async function mockInvoke(cmd: string, args: any = {}): Promise<any> {
       return book;
     }
     case "delete_spell": book.spells = book.spells.filter((s) => s.id !== args.id); return book;
-    case "test_recognize": return { matched: true, id: "1", name: "Circle of Undo", shortcut: `${P}+Z`, score: 0.91 };
+    case "test_recognize": return { matched: true, id: "1", name: "Circle of Undo", shortcut: `${P}+Z`, action: "shortcut", app_name: null, score: 0.91 };
     case "cast_shortcut": return;
   }
 }
