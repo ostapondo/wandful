@@ -1,9 +1,9 @@
+<h1 align="center">Wandful</h1>
+
 <p align="center">
-  <img src="docs/wand.gif" width="480"
+  <img src="docs/wand.gif" width="360"
        alt="A pixel-art wand follows the cursor, traces a glowing rune, and bursts into sparks when the spell is cast">
 </p>
-
-<h1 align="center">Wandful</h1>
 
 <p align="center"><strong>A magic wand for your desktop. Hold the right mouse button,
 draw a rune, and the shortcut you bound to it is cast.</strong><br>

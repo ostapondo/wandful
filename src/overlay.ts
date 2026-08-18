@@ -42,8 +42,8 @@ window.addEventListener("pointerup", async (e) => {
   const start = downAt;
   downAt = null;
   if (!wasDrawing) {
-    // a plain left click on the veil sheathes the wand
-    if (button === 0 && start) invoke("set_wand", { on: false });
+    // a plain click (any button, no drag) on the veil sheathes the wand
+    if (start) invoke("set_wand", { on: false });
     return;
   }
   const pts = points.map((p) => [p.x, p.y] as [number, number]);
@@ -56,6 +56,9 @@ window.addEventListener("pointerup", async (e) => {
   }
 });
 window.addEventListener("contextmenu", (e) => e.preventDefault());
+// Escape also works via the DOM (the overlay is the key window on macOS),
+// in addition to the global hook — belt and braces.
+window.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); invoke("set_wand", { on: false }); } });
 window.addEventListener("pointerleave", () => (wand.visible = false));
 window.addEventListener("pointerenter", () => (wand.visible = true));
 
