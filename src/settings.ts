@@ -331,13 +331,13 @@ $("threshold").addEventListener("input", (e) => { $("threshold-val").textContent
 $("threshold").addEventListener("change", async (e) => { book = await invoke<Book>("set_threshold", { threshold: Number((e.target as HTMLInputElement).value) }); });
 
 function setToggle(on: boolean) {
-  ($("toggle") as HTMLInputElement).checked = on;
-  $("switch-label").textContent = on ? "Wand out" : "Wand";
+  const el = $("wand-state");
+  el.textContent = on ? "✦ wand is out" : "";
+  el.classList.toggle("on", on);
 }
-$("toggle").addEventListener("change", (e) => invoke("set_wand", { on: (e.target as HTMLInputElement).checked }));
 listen<{ on: boolean }>("wand:mode", (e) => {
   setToggle(e.payload.on);
-  setStatus(e.payload.on ? "Wand summoned — hold the <b>right mouse button</b> anywhere and draw a rune." : "Wand sheathed.");
+  setStatus(e.payload.on ? "Wand summoned — hold a mouse button anywhere and draw a rune." : "Wand sheathed. Click the menu-bar icon or press the hotkey to summon it.");
 });
 listen<CastResult>("wand:cast", (e) => {
   const r = e.payload;

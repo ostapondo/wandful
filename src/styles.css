@@ -32,12 +32,8 @@ body {
 #brand-wand { width: 22px; height: 22px; image-rendering: pixelated; }
 body.win .titlebar { padding-left: 16px; }
 
-.switch { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--muted); font-size: 12px; }
-.switch input { display: none; }
-.switch i { width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.12); position: relative; transition: background .2s; }
-.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
-.switch input:checked + i { background: linear-gradient(90deg, var(--accent), var(--pink)); box-shadow: 0 0 14px rgba(167,139,250,.55); }
-.switch input:checked + i::after { transform: translateX(14px); }
+.wand-state { font-size: 12px; color: var(--muted); }
+.wand-state.on { color: var(--gold); }
 
 .banner { position: relative; z-index: 2; margin: 0 12px 10px; padding: 10px 12px; border-radius: 8px; background: rgba(245,192,74,.08); border: 1px solid rgba(245,192,74,.3); color: #f3e7c8; font-size: 12px; line-height: 1.45; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
 .banner b { color: var(--gold); font-weight: 600; }

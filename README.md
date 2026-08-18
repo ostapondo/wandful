@@ -34,6 +34,15 @@ npm run tauri build
 4. In the Spellbook: draw a rune in the canvas, type a name, click **Shortcut** and press the keys, **Save spell**.
    Click a spell in the list to edit or delete it. The spellbook starts empty — every rune and shortcut is yours. **Strictness** controls how precise the rune must be.
 
+## macOS: keep the Accessibility permission across rebuilds
+
+Ad-hoc signed builds get a new signature every time, and macOS forgets the permission. Once:
+
+```bash
+sh scripts/make-signing-cert.sh   # creates a self-signed "Wandful Dev" identity in your keychain
+npm run build:mac                 # tauri build + re-sign with that identity
+```
+
 ## macOS permission
 
 Global mouse hooks and key synthesis need **Accessibility**:

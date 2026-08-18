@@ -22,6 +22,8 @@ pub struct AppState {
     path: PathBuf,
     hook: Arc<HookState>,
     tray_toggle: Mutex<Option<MenuItem<tauri::Wry>>>,
+    /// pid of the app that was frontmost when the wand was summoned (macOS)
+    prev_app: Mutex<Option<i32>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -138,7 +140,7 @@ fn cast(app: AppHandle, state: State<AppState>, points: Vec<Point>) -> CastResul
             // let the golden burst play, then vanish and act
             std::thread::sleep(Duration::from_millis(420));
             set_wand_mode(&app2, false);
-            std::thread::sleep(Duration::from_millis(80));
+            std::thread::sleep(Duration::from_millis(180));
             perform(&app2, &r);
         });
     }
@@ -290,14 +292,48 @@ fn recognize_with(book: &Book, points: &[Point]) -> CastResult {
     }
 }
 
+/// macOS: pid of the frontmost app.
+#[cfg(target_os = "macos")]
+fn frontmost_pid() -> Option<i32> {
+    use objc2_app_kit::NSWorkspace;
+    unsafe { NSWorkspace::sharedWorkspace().frontmostApplication().map(|a| a.processIdentifier()) }
+}
+/// macOS: bring the app with `pid` back to the front.
+#[cfg(target_os = "macos")]
+fn activate_pid(pid: i32) {
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
+    unsafe {
+        if let Some(a) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+            a.activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
+        }
+    }
+}
+
 fn set_wand_mode(app: &AppHandle, on: bool) {
     let state = app.state::<AppState>();
-    state.hook.wand_on.store(on, Ordering::SeqCst);
+    let was_on = state.hook.wand_on.swap(on, Ordering::SeqCst);
     if let Some(overlay) = app.get_webview_window("overlay") {
         if on {
+            // Remember who was in front so we can hand focus back when casting.
+            #[cfg(target_os = "macos")]
+            if !was_on {
+                let me = std::process::id() as i32;
+                let front = frontmost_pid().filter(|&p| p != me);
+                *state.prev_app.lock().unwrap() = front;
+            }
             let _ = overlay.show();
+            // On macOS a window only receives mouse-moved events while its app is
+            // active, so the overlay takes focus while the wand is out.
+            #[cfg(target_os = "macos")]
+            let _ = overlay.set_focus();
         } else {
             let _ = overlay.hide();
+            #[cfg(target_os = "macos")]
+            if was_on {
+                if let Some(pid) = state.prev_app.lock().unwrap().take() {
+                    activate_pid(pid);
+                }
+            }
         }
     }
     if let Some(item) = state.tray_toggle.lock().unwrap().as_ref() {
@@ -334,7 +370,7 @@ fn create_overlay(app: &AppHandle) -> tauri::Result<()> {
         .skip_taskbar(true)
         .resizable(false)
         .focused(false)
-        .focusable(false)
+        .focusable(cfg!(target_os = "macos"))
         .visible(false)
         .visible_on_all_workspaces(true)
         .position(0.0, 0.0)
@@ -410,6 +446,7 @@ pub fn run() {
                 path,
                 hook: hook.clone(),
                 tray_toggle: Mutex::new(None),
+                prev_app: Mutex::new(None),
             });
 
             #[cfg(target_os = "macos")]

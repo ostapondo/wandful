@@ -26,6 +26,7 @@ log = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
+objc2-app-kit = { version = "0.3", features = ["NSRunningApplication", "NSWorkspace"] }
 env_logger = "0.11"
 
 [profile.release]

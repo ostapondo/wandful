@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:mac": "tauri build && sh scripts/sign-mac.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
