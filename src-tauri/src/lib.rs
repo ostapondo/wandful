@@ -206,6 +206,19 @@ fn set_settings(
 }
 
 #[tauri::command]
+fn reset_settings(app: AppHandle, state: State<AppState>) -> Result<Book, String> {
+    let mut book = state.book.lock().unwrap();
+    book.reset_settings();
+    let _ = app.global_shortcut().unregister_all();
+    if let Err(e) = register_hotkey(&app, &book.hotkey) {
+        log::error!("hotkey re-register failed: {e}");
+    }
+    book.save(&state.path)?;
+    let _ = app.emit_to("overlay", "overlay:style", OverlayStyle { color: book.overlay_color.clone(), opacity: book.overlay_opacity });
+    Ok(book.clone())
+}
+
+#[tauri::command]
 fn test_recognize(state: State<AppState>, points: Vec<Point>) -> CastResult {
     let book = state.book.lock().unwrap();
     recognize_with(&book, &points)
@@ -625,6 +638,7 @@ pub fn run() {
             set_wand,
             set_key_capture,
             set_settings,
+            reset_settings,
             cast,
             accessibility_ok,
             open_accessibility_settings,

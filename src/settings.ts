@@ -331,6 +331,14 @@ async function saveSettings(patch: { overlay_color?: string; overlay_opacity?: n
   } catch (e) { $("settings-msg").textContent = String(e); renderSettings(); }
 }
 $("open-settings").addEventListener("click", () => { renderSettings(); $("sheet").classList.remove("hidden"); });
+$("reset-settings").addEventListener("click", async () => {
+  try {
+    book = await invoke<Book>("reset_settings");
+    renderSettings(); renderBook();
+    $("settings-msg").textContent = "Defaults restored";
+    setTimeout(() => ($("settings-msg").textContent = ""), 1500);
+  } catch (e) { $("settings-msg").textContent = String(e); }
+});
 $("close-settings").addEventListener("click", () => $("sheet").classList.add("hidden"));
 $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) $("sheet").classList.add("hidden"); });
 $("ov-color").addEventListener("input", (e) => {

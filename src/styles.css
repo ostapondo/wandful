@@ -126,3 +126,4 @@ button:active { transform: translateY(1px); }
 /* app icons on spell cards */
 .spell .keys img, .appchip img { width: 16px; height: 16px; border-radius: 4px; vertical-align: -3px; margin-right: 4px; }
 .keybtn img { width: 16px; height: 16px; border-radius: 4px; }
+.sheet-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); margin-top: 4px; }

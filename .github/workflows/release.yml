@@ -72,6 +72,9 @@ jobs:
             target: x86_64-pc-windows-msvc
             args: ""
     runs-on: ${{ matrix.os }}
+    env:
+      # `secrets` cannot be read in a step's `if`; this can.
+      HAS_SIGNING_CERT: ${{ secrets.WANDFUL_SIGN_CERT_P12 != '' }}
     permissions:
       contents: write # create the draft release, upload the bundles
       id-token: write # sign the attestation
@@ -92,7 +95,7 @@ jobs:
       - run: npm ci
 
       - name: Import the signing certificate (macOS, optional)
-        if: runner.os == 'macOS' && secrets.WANDFUL_SIGN_CERT_P12 != ''
+        if: runner.os == 'macOS' && env.HAS_SIGNING_CERT == 'true'
         env:
           P12: ${{ secrets.WANDFUL_SIGN_CERT_P12 }}
           P12_PASSWORD: ${{ secrets.WANDFUL_SIGN_CERT_PASSWORD }}
@@ -114,6 +117,7 @@ jobs:
             -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
           security set-key-partition-list -S apple-tool:,apple: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          # shellcheck disable=SC2046 # the existing keychain list is meant to split
           security list-keychains -d user -s "$KEYCHAIN" \
             $(security list-keychains -d user | tr -d '"')
           rm -f "$P12_FILE" "$RUNNER_TEMP/signing.pem"

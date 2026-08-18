@@ -61,6 +61,14 @@ fn default_hotkey() -> String {
 }
 
 impl Book {
+    /// Restore every setting (not the spells) to its default.
+    pub fn reset_settings(&mut self) {
+        self.threshold = default_threshold();
+        self.hotkey = default_hotkey();
+        self.overlay_color = default_overlay_color();
+        self.overlay_opacity = default_overlay_opacity();
+    }
+
     pub fn load(path: &PathBuf) -> Book {
         match fs::read_to_string(path) {
             Ok(s) => serde_json::from_str(&s).unwrap_or_else(|_| Book::starter()),

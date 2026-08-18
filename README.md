@@ -1,10 +1,5 @@
 <h1 align="center">Wandful</h1>
 
-<p align="center">
-  <img src="docs/wand.gif" width="360"
-       alt="A pixel-art wand follows the cursor, traces a glowing rune, and bursts into sparks when the spell is cast">
-</p>
-
 <p align="center"><strong>A magic wand for your desktop. Hold the right mouse button,
 draw a rune, and the shortcut you bound to it is cast.</strong><br>
 <sub>Shortcuts are spells. The set you keep is your spellbook. Drawing one is a swish.</sub></p>
@@ -18,6 +13,11 @@ draw a rune, and the shortcut you bound to it is cast.</strong><br>
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ostapondo/wandful/ci.yml?style=flat-square&label=CI">
 </p>
 
+<p align="center">
+  <img src="docs/wand.gif" width="360"
+       alt="A pixel-art wand follows the cursor, traces a glowing rune, and bursts into sparks when the spell is cast">
+</p>
+
 ## What it is
 
 Every app has shortcuts nobody remembers. Wandful lets you draw them instead:
@@ -26,7 +26,8 @@ whatever app — you want. One small binary, a native window, no accounts, no
 network.
 
 - **A wand that follows the cursor.** Summon it from the tray, the spellbook
-  window, or with `⌘⇧M` / `Ctrl+Shift+M`. Sparks trail behind it while you draw.
+  window, or with `⌘⇧M` / `Ctrl+Shift+M` (changeable in Settings). Sparks trail
+  behind it while you draw.
 - **Right-drag is a gesture, right-click is still a click.** A right button
   press without movement reaches the app under the cursor as usual.
 - **Any rune you like.** The `$1 Unistroke` recognizer is rotation-, scale- and
