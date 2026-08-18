@@ -145,4 +145,7 @@ Bump `version` in `package.json`, `src-tauri/tauri.conf.json` and
 *Unreleased* section of `CHANGELOG.md` under the new version, commit, then
 `git tag v<version> && git push --tags`. The release workflow builds macOS and
 Windows bundles, attests them, and opens a **draft** release; edit the notes
-and publish it by hand.
+and publish it by hand. Publishing triggers the Homebrew workflow, which
+regenerates the cask in `ostapondo/homebrew-tap` (needs the
+`HOMEBREW_TAP_TOKEN` secret; without it, `sh scripts/make-cask.sh <version>`
+and commit the output there by hand).

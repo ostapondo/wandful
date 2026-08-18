@@ -7,6 +7,10 @@ may change the spellbook format — the changelog says so when they do.
 
 ## [Unreleased]
 
+### Added
+- Homebrew cask: `brew install --cask ostapondo/tap/wandful`. The tap is
+  updated by CI when a release is published (`scripts/make-cask.sh` by hand).
+
 ## [0.0.1] — 2026-08-18
 
 First tagged build. Everything below is new.

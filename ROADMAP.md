@@ -9,8 +9,9 @@ None of it is a promise; an issue is where a line here becomes one.
   for it, but nobody has run it on a real Windows machine yet, so 0.0.1 ships
   for macOS only. A report from Windows hardware brings it back into CI and
   the release matrix — see the `needs-hardware` label.
-- **Signed releases from CI.** macOS `.dmg` built by GitHub Actions on a tag,
-  with provenance attestations. The workflow is in place.
+- **Homebrew proper.** The cask lives in `ostapondo/tap` for now; the main
+  `homebrew/cask` tap accepts a project once it has 75 GitHub stars (or 30
+  forks / watchers), and the same file moves there.
 - **Spellbook import / export.** One JSON file, so a spellbook can be shared,
   and a `docs/spellbooks/` gallery can exist.
 - **Per-app spellbooks.** The same rune casts a different spell depending on

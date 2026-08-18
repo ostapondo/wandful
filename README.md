@@ -47,11 +47,22 @@ built or tested — both are on [ROADMAP.md](ROADMAP.md).
 
 ## Install
 
-There are no signed releases yet: Wandful is built from source, and that takes
-about a minute once the toolchain is there. Releases will appear on
-[the releases page](https://github.com/ostapondo/wandful/releases) as they are
-cut; each one is built by GitHub Actions and carries a provenance attestation
-you can check with `gh attestation verify <file> -R ostapondo/wandful`.
+**Homebrew** (Apple silicon and Intel):
+
+```sh
+brew install --cask ostapondo/tap/wandful
+```
+
+**Or the `.dmg`** from [the releases page](https://github.com/ostapondo/wandful/releases):
+open it, drag Wandful to Applications. Every file there is built by GitHub
+Actions and carries a provenance attestation you can check with
+`gh attestation verify <file> -R ostapondo/wandful`.
+
+Builds are not notarized (that needs a paid Apple account), so the first
+launch is right-click → **Open**, or `brew install --cask --no-quarantine …`.
+Then macOS asks once for Accessibility — see below.
+
+**Or from source**, which takes about a minute once the toolchain is there.
 
 **Prerequisites.** [Rust](https://rustup.rs) (stable), Node 20+, and the
 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) — on macOS
