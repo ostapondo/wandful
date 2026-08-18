@@ -2,6 +2,16 @@
   "name": "wandful",
   "private": true,
   "version": "0.1.0",
+  "description": "A pixel-art magic wand that casts keyboard shortcuts from mouse gestures",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ostapondo/wandful.git"
+  },
+  "homepage": "https://github.com/ostapondo/wandful#readme",
+  "bugs": {
+    "url": "https://github.com/ostapondo/wandful/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -29,6 +29,9 @@ window.addEventListener("pointermove", (e) => {
     wand.addPoint(p);
   }
 });
+const closeBtn = document.getElementById("close") as HTMLButtonElement;
+closeBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+closeBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); invoke("set_wand", { on: false }); });
 window.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   downAt = local(e);

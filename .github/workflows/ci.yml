@@ -1,0 +1,78 @@
+name: CI
+
+# A checkout is all any job here needs, so the token can only read. Nothing
+# in this file publishes anything.
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Pushing a fixup to a branch leaves the previous run building to the end,
+# answering a question about a commit that no longer exists. On main they
+# queue instead: every commit there gets its own answer.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # First, and on the cheapest runner there is: formatting and the frontend
+  # typecheck need no platform SDK, and nobody should hear about a stray
+  # space from a person.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1 (stable)
+        with:
+          toolchain: stable
+          components: rustfmt
+      - run: cargo fmt --check
+        working-directory: src-tauri
+      # package.json, tauri.conf.json and Cargo.toml each carry the version,
+      # and the release workflow trusts them to agree.
+      - name: Versions agree
+        run: |
+          set -eu
+          a=$(node -p "require('./package.json').version")
+          b=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          c=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          echo "package.json=$a tauri.conf.json=$b Cargo.toml=$c"
+          [ "$a" = "$b" ] && [ "$a" = "$c" ] || { echo "::error::versions differ"; exit 1; }
+
+  # The app only ships on macOS and Windows, so those are the two places
+  # clippy and the tests run. Linux would need the webkit2gtk stack for no
+  # supported target; see ROADMAP.md.
+  app:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1 (stable)
+        with:
+          toolchain: stable
+          components: clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      # tauri-build's build.rs wants ../dist to exist.
+      - run: npm ci && npm run build
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+      - run: cargo test
+        working-directory: src-tauri
