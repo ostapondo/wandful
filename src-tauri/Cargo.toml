@@ -2,7 +2,7 @@
 name = "wandful"
 version = "0.1.0"
 description = "Wandful — a pixel-art magic wand that casts keyboard shortcuts from mouse gestures"
-authors = ["Ostap Belei"]
+authors = ["ostapondo"]
 edition = "2021"
 
 [lib]
@@ -26,8 +26,11 @@ log = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
-objc2-app-kit = { version = "0.3", features = ["NSRunningApplication", "NSWorkspace"] }
+objc2-app-kit = { version = "0.3", features = ["NSRunningApplication", "NSWorkspace", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSData", "NSString", "NSDictionary", "NSArray", "NSGeometry"] }
 env_logger = "0.11"
+base64 = "0.22"
 
 [profile.release]
 panic = "abort"

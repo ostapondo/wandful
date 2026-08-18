@@ -136,7 +136,7 @@ pub unsafe fn convert(
         _ => None,
     };
     if let Some(event_type) = option_type {
-        // PATCHED (magic-wand): never resolve the key's Unicode name here.
+        // PATCHED (wandful): never resolve the key's Unicode name here.
         // TSM/HIToolbox input-source calls must run on the main queue and
         // trap (SIGTRAP) on modern macOS when invoked from the tap thread.
         let _ = &keyboard_state;

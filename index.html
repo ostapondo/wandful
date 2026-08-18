@@ -15,7 +15,10 @@
         <canvas id="brand-wand" width="22" height="22"></canvas>
         <span data-tauri-drag-region>Wandful</span>
       </div>
-      <span id="wand-state" class="wand-state" data-tauri-drag-region></span>
+      <div class="tb-right">
+        <span id="wand-state" class="wand-state" data-tauri-drag-region></span>
+        <button id="open-settings" class="icon-btn" title="Settings">⚙</button>
+      </div>
     </div>
 
     <div id="banner" class="banner hidden"></div>
@@ -64,6 +67,29 @@
         </div>
         <div id="status" class="status">Click the menu-bar icon (or press the hotkey), then hold a mouse button and draw a rune.</div>
       </section>
+    </div>
+
+    <div id="sheet" class="sheet hidden">
+      <div class="sheet-card">
+        <div class="sheet-head"><span>Settings</span><button id="close-settings" class="icon-btn">✕</button></div>
+        <label class="row-field">
+          <span>Overlay colour</span>
+          <span class="color-wrap"><input id="ov-color" type="color" /><span id="ov-swatch" class="swatch"></span></span>
+        </label>
+        <label class="row-field">
+          <span>Overlay opacity</span>
+          <span class="range-wrap"><input id="ov-opacity" type="range" min="0.2" max="1" step="0.01" /><b id="ov-opacity-val">0.90</b></span>
+        </label>
+        <label class="row-field">
+          <span>Summon hotkey</span>
+          <button id="hotkey-btn" class="keybtn" type="button">Hotkey…</button>
+        </label>
+        <div class="row-field preview-row">
+          <span>Preview</span>
+          <div id="ov-preview" class="ov-preview"><i></i></div>
+        </div>
+        <div id="settings-msg" class="msg"></div>
+      </div>
     </div>
 
     <script type="module" src="/src/settings.ts"></script>

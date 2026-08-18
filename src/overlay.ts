@@ -66,6 +66,14 @@ listen<{ on: boolean }>("wand:mode", (e) => {
 });
 invoke<boolean>("get_wand").then((on) => { document.body.classList.toggle("on", on); wand.visible = on; });
 
+function applyStyle(color: string, opacity: number) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  const rgb = m ? `${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)}` : "6,4,14";
+  (document.getElementById("veil") as HTMLElement).style.background = `rgba(${rgb},${opacity})`;
+}
+invoke<{ overlay_color: string; overlay_opacity: number }>("get_book").then((b) => applyStyle(b.overlay_color, b.overlay_opacity));
+listen<{ color: string; opacity: number }>("overlay:style", (e) => applyStyle(e.payload.color, e.payload.opacity));
+
 window.addEventListener("resize", () => (ctx = fitCanvas(canvas)));
 
 let last = performance.now();

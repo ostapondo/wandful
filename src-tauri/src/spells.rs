@@ -40,6 +40,17 @@ pub struct Book {
     pub threshold: f64,
     #[serde(default = "default_hotkey")]
     pub hotkey: String,
+    /// Overlay veil colour (#rrggbb) and opacity 0..1
+    #[serde(default = "default_overlay_color")]
+    pub overlay_color: String,
+    #[serde(default = "default_overlay_opacity")]
+    pub overlay_opacity: f64,
+}
+fn default_overlay_color() -> String {
+    "#06040e".into()
+}
+fn default_overlay_opacity() -> f64 {
+    0.9
 }
 
 fn default_threshold() -> f64 {
@@ -67,7 +78,13 @@ impl Book {
 
     /// A fresh spellbook is empty — the user picks their own runes and shortcuts.
     pub fn starter() -> Book {
-        Book { spells: vec![], threshold: default_threshold(), hotkey: default_hotkey() }
+        Book {
+            spells: vec![],
+            threshold: default_threshold(),
+            hotkey: default_hotkey(),
+            overlay_color: default_overlay_color(),
+            overlay_opacity: default_overlay_opacity(),
+        }
     }
 
     pub fn templates(&self) -> Vec<Template> {

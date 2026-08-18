@@ -8,3 +8,6 @@ Do not rename it or introduce alternative names.
 - Primary domain: wandful.app (also reserve wandful.dev / wandful.io if needed; wandful.com is taken)
 - Internal vocabulary: shortcut → "spell", set of shortcuts → "spellbook", run → "cast", trigger gesture → "swish"
 - Tone: warm, light, "complex made simple" — magic as metaphor, not childish
+
+Engineering guide (layout, threading rules, testing, releasing): [AGENTS.md](AGENTS.md).
+Open-source rules for contributors: [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -49,10 +49,19 @@ pub fn recognize(raw: &[Point], templates: &[Template]) -> Option<Match> {
     let half_diag = 0.5 * (2.0 * SQUARE_SIZE * SQUARE_SIZE).sqrt();
     let mut best: Option<Match> = None;
     for t in templates {
-        let d = distance_at_best_angle(&candidate, &t.points, -ANGLE_RANGE, ANGLE_RANGE, ANGLE_PRECISION);
+        let d = distance_at_best_angle(
+            &candidate,
+            &t.points,
+            -ANGLE_RANGE,
+            ANGLE_RANGE,
+            ANGLE_PRECISION,
+        );
         let score = 1.0 - d / half_diag;
-        if best.as_ref().map_or(true, |b| score > b.score) {
-            best = Some(Match { id: t.id.clone(), score });
+        if best.as_ref().is_none_or(|b| score > b.score) {
+            best = Some(Match {
+                id: t.id.clone(),
+                score,
+            });
         }
     }
     best
@@ -108,15 +117,27 @@ fn scale_to(points: &[Point], size: f64) -> Vec<Point> {
     let (min_x, min_y, max_x, max_y) = bbox(points);
     let w = (max_x - min_x).max(1e-9);
     let h = (max_y - min_y).max(1e-9);
-    points.iter().map(|&(x, y)| (x * size / w, y * size / h)).collect()
+    points
+        .iter()
+        .map(|&(x, y)| (x * size / w, y * size / h))
+        .collect()
 }
 
 fn translate_to(points: &[Point], k: Point) -> Vec<Point> {
     let c = centroid(points);
-    points.iter().map(|&(x, y)| (x + k.0 - c.0, y + k.1 - c.1)).collect()
+    points
+        .iter()
+        .map(|&(x, y)| (x + k.0 - c.0, y + k.1 - c.1))
+        .collect()
 }
 
-fn distance_at_best_angle(points: &[Point], t: &[Point], mut a: f64, mut b: f64, threshold: f64) -> f64 {
+fn distance_at_best_angle(
+    points: &[Point],
+    t: &[Point],
+    mut a: f64,
+    mut b: f64,
+    threshold: f64,
+) -> f64 {
     let mut x1 = PHI * a + (1.0 - PHI) * b;
     let mut f1 = distance_at_angle(points, t, x1);
     let mut x2 = (1.0 - PHI) * a + PHI * b;
@@ -155,7 +176,9 @@ fn path_distance(a: &[Point], b: &[Point]) -> f64 {
 
 fn centroid(points: &[Point]) -> Point {
     let n = points.len() as f64;
-    let (sx, sy) = points.iter().fold((0.0, 0.0), |(ax, ay), &(x, y)| (ax + x, ay + y));
+    let (sx, sy) = points
+        .iter()
+        .fold((0.0, 0.0), |(ax, ay), &(x, y)| (ax + x, ay + y));
     (sx / n, sy / n)
 }
 

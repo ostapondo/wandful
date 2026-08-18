@@ -4278,11 +4278,14 @@ dependencies = [
 name = "wandful"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "core-foundation 0.10.1",
  "enigo",
  "env_logger",
  "log",
+ "objc2",
  "objc2-app-kit",
+ "objc2-foundation",
  "rdev",
  "serde",
  "serde_json",

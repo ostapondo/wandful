@@ -9,13 +9,19 @@ const listen = (IS_TAURI ? tauriListen : (async () => () => {})) as typeof tauri
 import { Wand, fitCanvas, drawRunePreview, type Pt } from "./wand";
 
 type Spell = { id: string; name: string; shortcut: string; action: "shortcut" | "app"; app_path: string; app_name: string; points: [number, number][]; enabled: boolean };
-type Book = { spells: Spell[]; threshold: number; hotkey: string };
+type Book = { spells: Spell[]; threshold: number; hotkey: string; overlay_color: string; overlay_opacity: number };
 type CastResult = { matched: boolean; id: string | null; name: string | null; shortcut: string | null; action: string | null; app_name: string | null; score: number };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 let platform = { os: "macos", physical_coords: false };
-let book: Book = { spells: [], threshold: 0.8, hotkey: "CmdOrCtrl+Shift+M" };
+let book: Book = { spells: [], threshold: 0.8, hotkey: "CmdOrCtrl+Shift+M", overlay_color: "#06040e", overlay_opacity: 0.9 };
+const iconCache = new Map<string, Promise<string | null>>();
+function appIcon(path: string): Promise<string | null> {
+  if (!path) return Promise.resolve(null);
+  if (!iconCache.has(path)) iconCache.set(path, invoke<string | null>("app_icon", { path }).catch(() => null));
+  return iconCache.get(path)!;
+}
 let editingId = "";
 let shortcutValue = "";
 let actionKind: "shortcut" | "app" = "shortcut";
@@ -133,7 +139,8 @@ function setApp(path: string, name: string) {
   appPath = path; appName = name;
   const b = $("app");
   b.classList.toggle("set", !!path);
-  b.textContent = path ? `↗ ${name}` : "Choose application…";
+  b.textContent = path ? name : "Choose application…";
+  if (path) appIcon(path).then((src) => { if (src && appPath === path) b.innerHTML = `<img src="${src}" alt="" /> ${escapeHtml(name)}`; });
 }
 function baseName(p: string) {
   const last = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? p;
@@ -155,6 +162,7 @@ function renderBook() {
     ul.appendChild(li);
     drawRunePreview(li.querySelector("canvas")!, s.points, "#c4b5fd");
     li.addEventListener("click", () => startEdit(s));
+    if (s.action === "app" && s.app_path) appIcon(s.app_path).then((src) => { if (src) li.querySelector(".appchip")?.insertAdjacentHTML("afterbegin", `<img src="${src}" alt="" />`); });
   }
   ($("threshold") as HTMLInputElement).value = String(book.threshold);
   $("threshold-val").textContent = book.threshold.toFixed(2);
@@ -192,7 +200,7 @@ function replay(pts: Pt[]) {
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
   const total = cum[cum.length - 1] || 1;
-  const dur = Math.min(2000, Math.max(600, total * 2.2));
+  const dur = Math.min(900, Math.max(350, total * 0.9));
   const t0 = performance.now();
   let idx = 0;
   fwand.start(pts[0]);
@@ -244,22 +252,34 @@ function setShortcut(v: string) {
 
 // ---------- shortcut capture ----------
 let listening = false;
-function setListening(on: boolean) {
+let listenTarget: "shortcut" | "hotkey" = "shortcut";
+function setListening(on: boolean, target: "shortcut" | "hotkey" = listenTarget) {
   listening = on;
+  listenTarget = target;
   invoke("set_key_capture", { on }).catch(() => {});
-  const b = $("shortcut");
+  const b = target === "hotkey" ? $("hotkey-btn") : $("shortcut");
   if (on) { b.classList.add("listening"); b.textContent = "Press keys… (Esc to cancel)"; }
+  else if (target === "hotkey") renderHotkeyBtn();
   else setShortcut(shortcutValue);
 }
-$("shortcut").addEventListener("click", () => setListening(!listening));
+function acceptChord(chord: string) {
+  if (listenTarget === "hotkey") {
+    setListening(false, "hotkey");
+    saveSettings({ hotkey: chord });
+  } else {
+    shortcutValue = chord;
+    setListening(false, "shortcut");
+  }
+}
+$("shortcut").addEventListener("click", () => setListening(!listening, "shortcut"));
+$("hotkey-btn").addEventListener("click", () => setListening(!listening, "hotkey"));
 window.addEventListener("blur", () => { if (listening) setListening(false); });
 // Chords arrive from the global hook (keys are swallowed there so OS shortcuts don't fire).
 listen<{ mods: string[]; key: string }>("wand:key", (e) => {
   if (!listening) return;
   const { mods, key } = e.payload;
   if (key === "Escape" && !mods.length) { setListening(false); return; }
-  shortcutValue = [...mods, key].join("+");
-  setListening(false);
+  acceptChord([...mods, key].join("+"));
 });
 window.addEventListener("keydown", (e) => {
   if (!listening) return;
@@ -279,9 +299,52 @@ window.addEventListener("keydown", (e) => {
     else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5);
     else key = key.toUpperCase();
   }
-  shortcutValue = [...mods, key].join("+");
-  setListening(false);
+  acceptChord([...mods, key].join("+"));
 }, true);
+
+// ---------- settings sheet ----------
+function renderHotkeyBtn() {
+  const b = $("hotkey-btn");
+  b.classList.remove("listening");
+  b.classList.add("set");
+  b.innerHTML = renderKeys(book.hotkey);
+}
+function renderSettings() {
+  ($("ov-color") as HTMLInputElement).value = book.overlay_color;
+  $("ov-swatch").textContent = book.overlay_color;
+  ($("ov-opacity") as HTMLInputElement).value = String(book.overlay_opacity);
+  $("ov-opacity-val").textContent = book.overlay_opacity.toFixed(2);
+  ($("ov-preview").firstElementChild as HTMLElement).style.background = hexToRgba(book.overlay_color, book.overlay_opacity);
+  renderHotkeyBtn();
+}
+function hexToRgba(hex: string, a: number) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return `rgba(6,4,14,${a})`;
+  return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${a})`;
+}
+async function saveSettings(patch: { overlay_color?: string; overlay_opacity?: number; hotkey?: string }) {
+  try {
+    book = await invoke<Book>("set_settings", { patch });
+    renderSettings();
+    renderBook();
+    $("settings-msg").textContent = "";
+  } catch (e) { $("settings-msg").textContent = String(e); renderSettings(); }
+}
+$("open-settings").addEventListener("click", () => { renderSettings(); $("sheet").classList.remove("hidden"); });
+$("close-settings").addEventListener("click", () => $("sheet").classList.add("hidden"));
+$("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) $("sheet").classList.add("hidden"); });
+$("ov-color").addEventListener("input", (e) => {
+  const v = (e.target as HTMLInputElement).value;
+  $("ov-swatch").textContent = v;
+  ($("ov-preview").firstElementChild as HTMLElement).style.background = hexToRgba(v, Number(($("ov-opacity") as HTMLInputElement).value));
+});
+$("ov-color").addEventListener("change", (e) => saveSettings({ overlay_color: (e.target as HTMLInputElement).value }));
+$("ov-opacity").addEventListener("input", (e) => {
+  const v = Number((e.target as HTMLInputElement).value);
+  $("ov-opacity-val").textContent = v.toFixed(2);
+  ($("ov-preview").firstElementChild as HTMLElement).style.background = hexToRgba(($("ov-color") as HTMLInputElement).value, v);
+});
+$("ov-opacity").addEventListener("change", (e) => saveSettings({ overlay_opacity: Number((e.target as HTMLInputElement).value) }));
 
 // ---------- action kind + app picker ----------
 document.querySelectorAll<HTMLButtonElement>("#kind button").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind as "shortcut" | "app")));
@@ -374,4 +437,5 @@ function flashSpell(id: string) {
   renderBook();
   setToggle(await invoke<boolean>("get_wand"));
   if (isMac() && !(await invoke<boolean>("accessibility_ok"))) showPermissionBanner();
+  if (new URLSearchParams(location.search).get("open") === "settings") { renderSettings(); $("sheet").classList.remove("hidden"); }
 })();

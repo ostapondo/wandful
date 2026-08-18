@@ -1,7 +1,8 @@
 //! Global keyboard hook (rdev). Two jobs:
-//!  * while the spellbook records a shortcut, swallow key events and report
-//!    them as chords so OS / other apps' hotkeys don't fire;
-//!  * while the wand is out, Escape cancels casting.
+//! * while the spellbook records a shortcut, swallow key events and report
+//!   them as chords so OS / other apps' hotkeys don't fire;
+//! * while the wand is out, Escape cancels casting.
+//!
 //! Mouse handling lives in the overlay webview itself (it is hit-testable
 //! while the wand is out), so no mouse interception is needed here.
 
@@ -47,20 +48,78 @@ impl HookState {
 fn key_token(k: Key) -> Option<String> {
     use Key::*;
     let s = match k {
-        KeyA => "A", KeyB => "B", KeyC => "C", KeyD => "D", KeyE => "E", KeyF => "F", KeyG => "G",
-        KeyH => "H", KeyI => "I", KeyJ => "J", KeyK => "K", KeyL => "L", KeyM => "M", KeyN => "N",
-        KeyO => "O", KeyP => "P", KeyQ => "Q", KeyR => "R", KeyS => "S", KeyT => "T", KeyU => "U",
-        KeyV => "V", KeyW => "W", KeyX => "X", KeyY => "Y", KeyZ => "Z",
-        Num0 => "0", Num1 => "1", Num2 => "2", Num3 => "3", Num4 => "4",
-        Num5 => "5", Num6 => "6", Num7 => "7", Num8 => "8", Num9 => "9",
-        Return => "Enter", Space => "Space", Tab => "Tab", Escape => "Escape",
-        Backspace => "Backspace", Delete => "Delete", Home => "Home", End => "End",
-        PageUp => "PageUp", PageDown => "PageDown",
-        UpArrow => "Up", DownArrow => "Down", LeftArrow => "Left", RightArrow => "Right",
-        F1 => "F1", F2 => "F2", F3 => "F3", F4 => "F4", F5 => "F5", F6 => "F6",
-        F7 => "F7", F8 => "F8", F9 => "F9", F10 => "F10", F11 => "F11", F12 => "F12",
-        Minus => "-", Equal => "=", LeftBracket => "[", RightBracket => "]",
-        SemiColon => ";", Quote => "'", BackSlash => "\\", Comma => ",", Dot => ".", Slash => "/",
+        KeyA => "A",
+        KeyB => "B",
+        KeyC => "C",
+        KeyD => "D",
+        KeyE => "E",
+        KeyF => "F",
+        KeyG => "G",
+        KeyH => "H",
+        KeyI => "I",
+        KeyJ => "J",
+        KeyK => "K",
+        KeyL => "L",
+        KeyM => "M",
+        KeyN => "N",
+        KeyO => "O",
+        KeyP => "P",
+        KeyQ => "Q",
+        KeyR => "R",
+        KeyS => "S",
+        KeyT => "T",
+        KeyU => "U",
+        KeyV => "V",
+        KeyW => "W",
+        KeyX => "X",
+        KeyY => "Y",
+        KeyZ => "Z",
+        Num0 => "0",
+        Num1 => "1",
+        Num2 => "2",
+        Num3 => "3",
+        Num4 => "4",
+        Num5 => "5",
+        Num6 => "6",
+        Num7 => "7",
+        Num8 => "8",
+        Num9 => "9",
+        Return => "Enter",
+        Space => "Space",
+        Tab => "Tab",
+        Escape => "Escape",
+        Backspace => "Backspace",
+        Delete => "Delete",
+        Home => "Home",
+        End => "End",
+        PageUp => "PageUp",
+        PageDown => "PageDown",
+        UpArrow => "Up",
+        DownArrow => "Down",
+        LeftArrow => "Left",
+        RightArrow => "Right",
+        F1 => "F1",
+        F2 => "F2",
+        F3 => "F3",
+        F4 => "F4",
+        F5 => "F5",
+        F6 => "F6",
+        F7 => "F7",
+        F8 => "F8",
+        F9 => "F9",
+        F10 => "F10",
+        F11 => "F11",
+        F12 => "F12",
+        Minus => "-",
+        Equal => "=",
+        LeftBracket => "[",
+        RightBracket => "]",
+        SemiColon => ";",
+        Quote => "'",
+        BackSlash => "\\",
+        Comma => ",",
+        Dot => ".",
+        Slash => "/",
         BackQuote => "`",
         _ => return None,
     };
@@ -99,10 +158,18 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
             if down {
                 if let Some(key) = key_token(other) {
                     let mut mods = vec![];
-                    if m.meta { mods.push("Cmd".to_string()); }
-                    if m.ctrl { mods.push("Ctrl".to_string()); }
-                    if m.alt { mods.push("Alt".to_string()); }
-                    if m.shift { mods.push("Shift".to_string()); }
+                    if m.meta {
+                        mods.push("Cmd".to_string());
+                    }
+                    if m.ctrl {
+                        mods.push("Ctrl".to_string());
+                    }
+                    if m.alt {
+                        mods.push("Alt".to_string());
+                    }
+                    if m.shift {
+                        mods.push("Shift".to_string());
+                    }
                     let _ = tx.send(Msg::KeyChord { mods, key });
                     // one chord per capture — never leave the keyboard swallowed
                     state.capture_keys.store(false, Ordering::SeqCst);
@@ -120,10 +187,16 @@ pub fn spawn(state: Arc<HookState>, tx: Sender<Msg>) {
             let st = state.clone();
             let tx2 = tx.clone();
             let res = rdev::grab(move |event: Event| {
-                if handle(&st, &tx2, &event) { Some(event) } else { None }
+                if handle(&st, &tx2, &event) {
+                    Some(event)
+                } else {
+                    None
+                }
             });
             if let Err(e) = res {
-                log::error!("grab failed: {e:?} — falling back to listen (keys can't be swallowed)");
+                log::error!(
+                    "grab failed: {e:?} — falling back to listen (keys can't be swallowed)"
+                );
                 let _ = tx.send(Msg::HookError(format!("{e:?}")));
                 let st = state.clone();
                 let tx3 = tx.clone();

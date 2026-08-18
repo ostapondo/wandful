@@ -13,6 +13,8 @@ let book = {
   ],
   threshold: 0.8,
   hotkey: "CmdOrCtrl+Shift+M",
+  overlay_color: "#06040e",
+  overlay_opacity: 0.9,
 };
 let wand = false;
 
@@ -26,6 +28,8 @@ export async function mockInvoke(cmd: string, args: any = {}): Promise<any> {
     case "accessibility_ok": return true;
     case "open_accessibility_settings": case "restart_app": return;
     case "set_threshold": book = { ...book, threshold: args.threshold }; return book;
+    case "set_settings": book = { ...book, ...Object.fromEntries(Object.entries(args.patch).filter(([, v]) => v != null)) }; return book;
+    case "app_icon": return null;
     case "save_spell": {
       const sp = { ...args.spell, id: args.spell.id || String(Date.now()) };
       const i = book.spells.findIndex((s) => s.id === sp.id);
