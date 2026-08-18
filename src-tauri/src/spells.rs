@@ -1,6 +1,6 @@
 //! Spellbook persistence: gestures ("runes") mapped to keyboard shortcuts.
 
-use crate::recognizer::{shapes, Point, Template};
+use crate::recognizer::{Point, Template};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -52,24 +52,9 @@ impl Book {
         fs::write(path, s).map_err(|e| e.to_string())
     }
 
+    /// A fresh spellbook is empty — the user picks their own runes and shortcuts.
     pub fn starter() -> Book {
-        let primary = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
-        let mk = |name: &str, keys: &str, pts: Vec<Point>| Spell {
-            id: uuid::Uuid::new_v4().to_string(),
-            name: name.into(),
-            shortcut: format!("{primary}+{keys}"),
-            points: pts,
-            enabled: true,
-        };
-        Book {
-            spells: vec![
-                mk("Circle of Undo", "Z", shapes::circle()),
-                mk("Check of Saving", "S", shapes::check()),
-                mk("Lightning Redo", "Shift+Z", shapes::zigzag()),
-            ],
-            threshold: default_threshold(),
-            hotkey: default_hotkey(),
-        }
+        Book { spells: vec![], threshold: default_threshold(), hotkey: default_hotkey() }
     }
 
     pub fn templates(&self) -> Vec<Template> {

@@ -32,7 +32,7 @@ npm run tauri build
 2. Hold the **right mouse button** anywhere and draw a rune. Release → the matching spell fires.
 3. Right-click without moving still opens the normal context menu.
 4. In the Spellbook: draw a rune in the canvas, type a name, click **Shortcut** and press the keys, **Save spell**.
-   Click a spell in the list to edit or delete it. **Strictness** controls how precise the rune must be.
+   Click a spell in the list to edit or delete it. The spellbook starts empty — every rune and shortcut is yours. **Strictness** controls how precise the rune must be.
 
 ## macOS permission
 

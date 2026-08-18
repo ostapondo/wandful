@@ -76,6 +76,7 @@ fn save_spell(state: State<AppState>, mut spell: Spell) -> Result<Book, String> 
     if spell.shortcut.trim().is_empty() {
         return Err("Choose a shortcut".into());
     }
+    log::info!("save_spell {} ({} pts) -> {}", spell.name, spell.points.len(), spell.shortcut);
     let mut book = state.book.lock().unwrap();
     if spell.id.is_empty() {
         spell.id = uuid::Uuid::new_v4().to_string();
@@ -120,6 +121,7 @@ fn cast(app: AppHandle, state: State<AppState>, points: Vec<Point>) -> CastResul
         let book = state.book.lock().unwrap();
         recognize_with(&book, &points)
     };
+    log::info!("cast: {} pts -> matched={} name={:?} score={:.2}", points.len(), result.matched, result.name, result.score);
     let _ = app.emit_to("main", "wand:cast", result.clone());
     if result.matched {
         if let Some(sc) = result.shortcut.clone() {
@@ -193,6 +195,14 @@ fn accessibility_trusted(_prompt: bool) -> bool {
 #[tauri::command]
 fn set_key_capture(state: State<AppState>, on: bool) {
     state.hook.capture_keys.store(on, Ordering::SeqCst);
+    if on {
+        // Safety net: never swallow the keyboard for more than a few seconds.
+        let hook = state.hook.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(8));
+            hook.capture_keys.store(false, Ordering::SeqCst);
+        });
+    }
 }
 
 /// Key synthesis touches Cocoa/TIS APIs that must run on the main queue.
@@ -310,8 +320,22 @@ fn spawn_worker(app: AppHandle, rx: mpsc::Receiver<Msg>) {
         .expect("spawn worker");
 }
 
+fn init_logging() {
+    let mut builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
+    if let Some(home) = std::env::var_os("HOME") {
+        let dir = std::path::PathBuf::from(home).join(if cfg!(target_os = "macos") { "Library/Logs/Wandful" } else { ".wandful" });
+        if std::fs::create_dir_all(&dir).is_ok() {
+            if let Ok(f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("wandful.log")) {
+                builder.target(env_logger::Target::Pipe(Box::new(f)));
+            }
+        }
+    }
+    let _ = builder.try_init();
+}
+
 pub fn run() {
-    env_logger::init();
+    init_logging();
+    log::info!("Wandful starting");
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![

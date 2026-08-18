@@ -173,35 +173,3 @@ fn path_length(points: &[Point]) -> f64 {
 fn dist(a: Point, b: Point) -> f64 {
     ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt()
 }
-
-/// Built-in example strokes so the spellbook isn't empty on first launch.
-pub mod shapes {
-    use super::Point;
-    use std::f64::consts::PI;
-
-    pub fn circle() -> Vec<Point> {
-        (0..=48)
-            .map(|i| {
-                let a = -PI / 2.0 + i as f64 / 48.0 * 2.0 * PI;
-                (100.0 + 60.0 * a.cos(), 100.0 + 60.0 * a.sin())
-            })
-            .collect()
-    }
-    pub fn check() -> Vec<Point> {
-        polyline(&[(20.0, 90.0), (60.0, 140.0), (150.0, 30.0)])
-    }
-    pub fn zigzag() -> Vec<Point> {
-        polyline(&[(20.0, 20.0), (140.0, 20.0), (20.0, 140.0), (140.0, 140.0)])
-    }
-    pub fn polyline(corners: &[Point]) -> Vec<Point> {
-        let mut out = vec![];
-        for w in corners.windows(2) {
-            for i in 0..12 {
-                let t = i as f64 / 12.0;
-                out.push((w[0].0 + (w[1].0 - w[0].0) * t, w[0].1 + (w[1].1 - w[0].1) * t));
-            }
-        }
-        out.push(*corners.last().unwrap());
-        out
-    }
-}

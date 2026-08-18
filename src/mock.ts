@@ -9,7 +9,6 @@ let book = {
   spells: [
     { id: "1", name: "Circle of Undo", shortcut: `${P}+Z`, points: circle, enabled: true },
     { id: "2", name: "Check of Saving", shortcut: `${P}+S`, points: line([[20, 90], [60, 140], [150, 30]]), enabled: true },
-    { id: "3", name: "Lightning Redo", shortcut: `${P}+Shift+Z`, points: line([[20, 20], [140, 20], [20, 140], [140, 140]]), enabled: true },
   ],
   threshold: 0.8,
   hotkey: "CmdOrCtrl+Shift+M",

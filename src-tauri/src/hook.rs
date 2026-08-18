@@ -83,17 +83,19 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
         return false;
     }
 
-    if !state.capture_keys.load(Ordering::SeqCst) {
-        return true;
-    }
-
+    // Track modifiers at all times so releases that arrive after capture ends
+    // don't leave stale state behind.
     let mut m = state.mods.lock().unwrap();
+    let capturing = state.capture_keys.load(Ordering::SeqCst);
     match key {
         Key::MetaLeft | Key::MetaRight => m.meta = down,
         Key::ControlLeft | Key::ControlRight => m.ctrl = down,
         Key::Alt | Key::AltGr => m.alt = down,
         Key::ShiftLeft | Key::ShiftRight => m.shift = down,
         other => {
+            if !capturing {
+                return true;
+            }
             if down {
                 if let Some(key) = key_token(other) {
                     let mut mods = vec![];
@@ -102,11 +104,13 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
                     if m.alt { mods.push("Alt".to_string()); }
                     if m.shift { mods.push("Shift".to_string()); }
                     let _ = tx.send(Msg::KeyChord { mods, key });
+                    // one chord per capture — never leave the keyboard swallowed
+                    state.capture_keys.store(false, Ordering::SeqCst);
                 }
             }
         }
     }
-    false
+    !capturing
 }
 
 pub fn spawn(state: Arc<HookState>, tx: Sender<Msg>) {
