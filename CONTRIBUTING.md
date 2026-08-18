@@ -35,7 +35,7 @@ npm run build                                       # tsc + vite: the frontend c
 ```
 
 Each line is a subshell, so the block runs as written from the repository
-root. That is exactly what CI runs, on macOS and Windows. If it passes, the
+root. That is exactly what CI runs, on macOS. If it passes, the
 mechanical half of review is already done.
 
 To see it: `npm run tauri dev`. On macOS the Accessibility grant then belongs

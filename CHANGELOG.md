@@ -22,8 +22,8 @@ First tagged build. Everything below is new.
 - macOS: Accessibility check with a banner and a listen-only fallback; helper
   scripts to sign builds with a stable self-signed identity so the permission
   survives rebuilds.
-- Windows: full-screen overlay on the primary monitor, shown only while the
-  wand is out.
+- Windows: compiles and is wired up (overlay, hook, casting), but is not part
+  of the release until it has been run on real hardware — see ROADMAP.md.
 - Open-source scaffolding: CI, release workflow, issue and PR templates,
   contributing guide, security policy, code of conduct.
 - Bind a rune from the overlay: when a stroke matches nothing, the wand offers
