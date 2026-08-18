@@ -26,14 +26,14 @@ rdev = { path = "vendor/rdev", features = ["unstable_grab"] }
 enigo = "0.6"
 uuid = { version = "1", features = ["v4"] }
 log = "0.4"
+env_logger = "0.11"
+base64 = "0.22"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
 objc2-app-kit = { version = "0.3", features = ["NSRunningApplication", "NSWorkspace", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSData", "NSString", "NSDictionary", "NSArray", "NSGeometry"] }
-env_logger = "0.11"
-base64 = "0.22"
 
 [profile.release]
 panic = "abort"
