@@ -419,12 +419,14 @@ pre .c{color:#8f8ca0}
   <section class="card glass" id="install">
     <p class="eyebrow">Get it</p>
     <h2 class="h2">Free, open, early.</h2>
-    <p class="lead">Version 0.0.1. Builds for macOS (Apple silicon and Intel) are on the releases page; each one is built by GitHub Actions and carries a provenance attestation you can check.</p>
+    <p class="lead">Version 0.0.1, macOS (Apple silicon and Intel). Every build comes from GitHub Actions and carries a provenance attestation you can check.</p>
+<pre style="margin-bottom:14px"><span class="c"># Homebrew</span>
+brew install --cask ostapondo/tap/wandful</pre>
     <div class="cta" style="margin-bottom:22px">
-      <a class="btn dark" href="https://github.com/ostapondo/wandful/releases/latest">Download the latest release</a>
+      <a class="btn dark" href="https://github.com/ostapondo/wandful/releases/latest">Or download the .dmg</a>
       <a class="btn ghost" href="https://github.com/ostapondo/wandful">Source on GitHub</a>
     </div>
-    <p class="p">Or build it yourself in about a minute once <a href="https://rustup.rs">Rust</a>, Node&nbsp;20+ and the <a href="https://v2.tauri.app/start/prerequisites/">Tauri prerequisites</a> are there:</p>
+    <p class="p">Builds are not notarized yet, so the first launch is right-click &rarr; <b>Open</b>. Or build it yourself in about a minute once <a href="https://rustup.rs">Rust</a>, Node&nbsp;20+ and the <a href="https://v2.tauri.app/start/prerequisites/">Tauri prerequisites</a> are there:</p>
 <pre><span class="c"># clone, install, run</span>
 git clone https://github.com/ostapondo/wandful &amp;&amp; cd wandful
 npm install

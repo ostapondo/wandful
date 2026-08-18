@@ -1,0 +1,62 @@
+name: Homebrew
+
+# When a release is published (draft → public), regenerate the cask in
+# github.com/ostapondo/homebrew-tap so `brew upgrade` sees it. The main
+# homebrew/cask tap wants 75 stars first; until then the tap is the way in.
+#
+# Needs one secret, under Settings > Secrets and variables > Actions:
+#
+#   HOMEBREW_TAP_TOKEN  a fine-grained PAT with Contents: read/write on
+#                       ostapondo/homebrew-tap and nothing else
+#
+# Without it the job does nothing but say so; scripts/make-cask.sh does the
+# same by hand.
+
+permissions:
+  contents: read
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish (without v), e.g. 0.1.0
+        required: true
+
+jobs:
+  cask:
+    runs-on: ubuntu-latest
+    env:
+      HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    steps:
+      - name: No token
+        if: env.HAS_TAP_TOKEN != 'true'
+        run: echo "::warning::HOMEBREW_TAP_TOKEN is not set; run scripts/make-cask.sh by hand"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HAS_TAP_TOKEN == 'true'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HAS_TAP_TOKEN == 'true'
+        with:
+          repository: ostapondo/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write the cask
+        if: env.HAS_TAP_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
+        run: |
+          set -eu
+          v=${VERSION#v}
+          sh scripts/make-cask.sh "$v" > tap/Casks/wandful.rb
+          cd tap
+          git add Casks/wandful.rb
+          if git diff --cached --quiet; then echo "cask already at $v"; exit 0; fi
+          git -c user.name=github-actions[bot] \
+              -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+              commit -m "wandful $v"
+          git push
