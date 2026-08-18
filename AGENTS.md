@@ -49,10 +49,12 @@ This is where the hours have gone.
 - **`app.run_on_main_thread` is the way onto the main thread**, not a Grand
   Central Dispatch call of your own. It queues into Tauri's run loop, which is
   the same one AppKit uses.
-- **The overlay must be click-through while the wand is hidden** and
-  hit-testable while it is out; `set_ignore_cursor_events` is the switch and
-  the overlay is the only window that flips it. A regression here looks like
-  "the app ate my right click" and is the first thing to check.
+- **The overlay is hidden, not click-through, while the wand is away.**
+  `set_wand_mode` in `lib.rs` shows it and takes focus when the wand comes
+  out, remembers the frontmost app's pid, and hands focus back after a cast.
+  All mouse handling happens inside the overlay web view while it is up.
+  A regression here looks like "the app ate my right click" or "my shortcut
+  went to Wandful instead of the app", and is the first thing to check.
 - **The Accessibility grant is tied to the code signature.** Ad-hoc signed
   bundles get a new signature every build and lose the grant; `scripts/sign-mac.sh`
   re-signs with a stable local identity so it survives. In `tauri dev` the
@@ -75,9 +77,8 @@ This is where the hours have gone.
 - No framework, no bundler plugins beyond what Vite ships, no CSS framework.
   Two windows do not need one.
 - The wand sprite in `wand.ts` is duplicated in `scripts/make-readme-gif.mjs`
-  and `scripts/make-readme-png.mjs` so the README media matches the app. If
-  the sprite changes, regenerate both (`node scripts/make-readme-gif.mjs`
-  needs `ffmpeg`).
+  so the README media matches the app. If the sprite changes, regenerate it
+  (`node scripts/make-readme-gif.mjs`, needs `ffmpeg`).
 
 ## Testing
 

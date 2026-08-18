@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # The GitHub Actions in .github/workflows are pinned to commit SHAs. This is
+  # what moves them, one pull request at a time, so a pin never goes stale
+  # silently.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      tauri:
+        patterns: ["@tauri-apps/*"]
+
+  # src-tauri/vendor/rdev is a path dependency and Dependabot cannot bump it;
+  # syncing it with upstream is a by-hand job that re-applies the PATCHED
+  # comments. Everything else in Cargo.toml is watched here.
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      tauri:
+        patterns: ["tauri*"]
+      objc2:
+        patterns: ["objc2*"]

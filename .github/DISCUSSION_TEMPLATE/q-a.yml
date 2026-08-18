@@ -1,0 +1,14 @@
+title: "[Q] "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+      description: What you are trying to do, what you tried, what happened.
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: OS and Wandful version
+      placeholder: "macOS 15.5, 0.1.0"

@@ -1,0 +1,107 @@
+name: Bug report
+description: Something Wandful does that it should not, or does not do that it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A global mouse hook and a full-screen overlay depend on hardware nobody
+        else has, so the questions below are the ones that decide whether this
+        can be reproduced at all.
+
+        If what you have found is exploitable, close this and read SECURITY.md
+        instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        Summoned the wand, drew the "S" rune over a Chrome window. Expected
+        ⌘T. Nothing fired, and the trail stayed on screen after release.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: From a freshly launched Wandful, if you can get there.
+      placeholder: |
+        1. Save a spell "S" → ⌘T at default strictness
+        2. Toggle the wand with ⌘⇧M
+        3. Right-drag an S over any Chrome window
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Wandful version
+      description: From the spellbook window title, or `git rev-parse --short HEAD` if built from source.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS, Apple silicon
+        - macOS, Intel
+        - Windows 11
+        - Windows 10
+        - Linux (unsupported, but say what happened)
+    validations:
+      required: true
+  - type: input
+    id: osversion
+    attributes:
+      label: OS version
+      placeholder: "macOS 15.5 / Windows 11 24H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it was installed
+      options:
+        - Downloaded release
+        - Built from source (npm run tauri build)
+        - Running in dev (npm run tauri dev)
+    validations:
+      required: true
+  - type: textarea
+    id: displays
+    attributes:
+      label: Monitors and input
+      description: >
+        How many displays, their arrangement and scale factors if you know
+        them, and what you draw with: mouse, trackpad, tablet, buttons swapped.
+        A display to the left of the primary one, or a mixed-scale setup, is
+        the cause of a surprising share of overlay bugs.
+      placeholder: |
+        Two: a 14" Retina laptop screen (2x) below a 27" 1x monitor that is
+        the primary. Logitech mouse.
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: App under the cursor
+      description: Which app owned the window you drew over, if it matters.
+      placeholder: "Chrome 128"
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >
+        macOS: `~/Library/Logs/Wandful/wandful.log`. Windows: `%HOME%\.wandful\wandful.log`
+        if HOME is set. The last twenty lines around the time it happened.
+        Read it before you paste it — it can name the keys you pressed while
+        recording a spell.
+      render: text
+  - type: checkboxes
+    id: accessibility
+    attributes:
+      label: macOS only
+      options:
+        - label: Accessibility is granted to Wandful (or, in dev, to the terminal that launched it) and the app was restarted after granting

@@ -1,0 +1,9 @@
+title: "[Spellbook] "
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you made
+      description: The runes, what they cast, and a screenshot or recording if you have one. Paste `spellbook.json` if you are happy to share it.
+    validations:
+      required: true

@@ -1,0 +1,14 @@
+title: "[Idea] "
+labels: ["idea"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: Half-formed is fine. What would Wandful do, and what would you stop doing by hand?
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do about it today
