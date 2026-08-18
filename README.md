@@ -2,6 +2,8 @@
 and the shortcut you bound to it is cast.</strong><br>
 <sub>Shortcuts are spells. The set you keep is your spellbook. Drawing one is a swish.</sub></p>
 
+<p align="center"><a href="https://ostapondo.github.io/wandful/">ostapondo.github.io/wandful</a> — try the recognizer in your browser</p>
+
 <p align="center">
   <img alt="Version" src="https://img.shields.io/github/v/release/ostapondo/wandful?style=flat-square&color=8b5cf6&label=version&include_prereleases">
   <img alt="macOS + Windows" src="https://img.shields.io/badge/macOS%20%7C%20Windows-3a6bff?style=flat-square">

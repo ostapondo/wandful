@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wandful — draw a rune, cast a shortcut</title>
+<meta name="description" content="A pixel-art magic wand for your desktop. Summon it, draw a shape you can repeat, and the keyboard shortcut you bound to it is typed into the app you were in — or an app opens. macOS and Windows, one small binary, no account, no cloud.">
+<link rel="icon" href="icon.png">
+<meta property="og:title" content="Wandful — draw a rune, cast a shortcut">
+<meta property="og:description" content="Shortcuts nobody remembers become shapes you can draw without looking. Summon the wand, draw, release. Nothing leaves your machine.">
+<meta property="og:image" content="https://ostapondo.github.io/wandful/social-preview.png">
+<meta property="og:url" content="https://ostapondo.github.io/wandful/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<script>
+  // Before the first paint, so a visitor who chose light on a dark system does
+  // not get a flash of the wrong theme. The buttons are wired up at the end.
+  try {
+    var saved = localStorage.getItem('wandful-theme');
+    if (saved === 'light' || saved === 'dark') {
+      document.documentElement.setAttribute('data-theme', saved);
+      document.documentElement.style.colorScheme = saved;
+    }
+  } catch (e) {}
+</script>
+<style>
+/* ============================================================
+   NIGHT AND SPARKS
+   Two rules hold the page together.
+
+   One: the page is night. Black glass, thin lines, system type —
+   the same quiet chrome as the app. Light mode exists, but the
+   product is dark and the page says so by default.
+
+   Two: the only pixel-art on the page is the wand, its sparks
+   and the runes. They sit on a 3px grid and never get anti-
+   aliased; everything around them is soft. That contrast is
+   what makes a 16×16 sprite feel like an object on the page
+   instead of a texture.
+   ============================================================ */
+:root{
+  color-scheme: dark light;
+
+  /* the sparks — straight out of src/wand/wand.ts */
+  --gold:#ffd64f;
+  --pink:#ff7ad9;
+  --violet:#b06bff;
+  --cyan:#7af0ff;
+  --wood:#a0622d;
+
+  --bg:#09090b;
+  --ink:#ededf0;
+  --dim:#a5a3b0;
+  --dimmer:#6f6d7a;
+  --line:rgba(255,255,255,.1);
+  --line-2:rgba(255,255,255,.16);
+  --glass:rgba(16,16,20,.62);
+  --glass-edge:rgba(255,255,255,.08);
+  --glass-shadow:0 12px 44px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+  --mesh-opacity:.22;
+  --sunk:rgba(255,255,255,.06);
+  --well:rgba(0,0,0,.35);
+  --accent:#a78bfa;
+  --accent-2:#c4b5fd;
+  --gold-ui:#f5c04a;
+
+  --display:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Helvetica Neue",Arial,sans-serif;
+  --text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+/* The light palette. Guarded so an explicit dark choice beats a light system. */
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f5f4f7;
+    --ink:#131218;
+    --dim:#5d5b6b;
+    --dimmer:#8b8997;
+    --line:rgba(19,18,24,.1);
+    --line-2:rgba(19,18,24,.16);
+    --glass:rgba(255,255,255,.72);
+    --glass-edge:rgba(255,255,255,.75);
+    --glass-shadow:0 12px 44px rgba(19,18,24,.1), inset 0 1px 0 rgba(255,255,255,.9);
+    --mesh-opacity:.3;
+    --sunk:rgba(19,18,24,.06);
+    --well:rgba(19,18,24,.06);
+    --accent:#7c5cf0;
+    --accent-2:#5b3fd6;
+    --gold-ui:#a97a12;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f5f4f7;
+  --ink:#131218;
+  --dim:#5d5b6b;
+  --dimmer:#8b8997;
+  --line:rgba(19,18,24,.1);
+  --line-2:rgba(19,18,24,.16);
+  --glass:rgba(255,255,255,.72);
+  --glass-edge:rgba(255,255,255,.75);
+  --glass-shadow:0 12px 44px rgba(19,18,24,.1), inset 0 1px 0 rgba(255,255,255,.9);
+  --mesh-opacity:.3;
+  --sunk:rgba(19,18,24,.06);
+  --well:rgba(19,18,24,.06);
+  --accent:#7c5cf0;
+  --accent-2:#5b3fd6;
+  --gold-ui:#a97a12;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--text);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+svg{display:block}
+img{max-width:100%;height:auto}
+a{color:inherit}
+code{font-family:var(--mono);font-size:.92em}
+.px{image-rendering:pixelated;image-rendering:crisp-edges}
+
+/* ---------- the mesh: the sparks, out of focus ---------- */
+.mesh{position:fixed;inset:-22%;z-index:-1;filter:blur(64px);opacity:var(--mesh-opacity);pointer-events:none}
+.mesh i{position:absolute;display:block;border-radius:50%}
+.mesh .a{width:56%;height:44%;left:-8%;top:-2%;background:var(--violet)}
+.mesh .b{width:50%;height:40%;right:-10%;top:16%;background:var(--pink)}
+.mesh .c{width:44%;height:36%;left:10%;bottom:8%;background:var(--cyan)}
+.mesh .d{width:40%;height:32%;right:4%;bottom:-6%;background:var(--gold)}
+@keyframes f1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(9%,7%) scale(1.18)}}
+@keyframes f2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-8%,10%) scale(.92)}}
+@keyframes f3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(7%,-9%) scale(1.15)}}
+@keyframes f4{0%,100%{transform:translate(0,0) scale(1.05)}50%{transform:translate(-11%,-6%) scale(.94)}}
+.mesh .a{animation:f1 22s ease-in-out infinite}
+.mesh .b{animation:f2 26s ease-in-out infinite}
+.mesh .c{animation:f3 24s ease-in-out infinite}
+.mesh .d{animation:f4 28s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.mesh i{animation:none}}
+/* a few fixed stars behind everything, on the pixel grid */
+#stars{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.7}
+
+/* ---------- shell ---------- */
+.wrap{max-width:960px;margin:0 auto;padding:0 16px 80px}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+.card{border-radius:28px;padding:30px 24px;margin-top:14px}
+@media (min-width:760px){.card{padding:46px 42px}}
+
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:999px;padding:9px 10px 9px 16px;margin-top:16px;position:sticky;top:10px;z-index:5}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;font-size:16px;text-decoration:none}
+.brand canvas{width:24px;height:24px}
+.nav .right{display:flex;align-items:center;gap:8px}
+.themes{display:flex;gap:2px;background:var(--sunk);border-radius:999px;padding:3px}
+.themes button{width:28px;height:28px;border:0;background:none;border-radius:999px;cursor:pointer;color:var(--dim);font:600 12px/1 var(--text);display:grid;place-items:center}
+.themes button[aria-pressed="true"]{background:var(--bg);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.pill{border-radius:999px;padding:9px 17px;font-size:14px;font-weight:700;text-decoration:none;background:var(--ink);color:var(--bg)}
+
+h1,h2,h3{text-wrap:balance}
+.h1{font-family:var(--display);font-weight:800;letter-spacing:-.05em;line-height:.9;font-size:clamp(44px,10vw,80px);margin:0 0 20px}
+.h2{font-family:var(--display);font-weight:800;letter-spacing:-.04em;line-height:.96;font-size:clamp(30px,6vw,46px);margin:0 0 14px}
+.grad-text{background:linear-gradient(100deg,var(--pink),var(--violet) 50%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+.gold-text{color:var(--gold-ui)}
+.lead{margin:0 0 24px;font-size:clamp(17px,2.3vw,20px);line-height:1.42;color:var(--dim);max-width:38ch}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 16px;display:flex;align-items:center;gap:9px}
+.eyebrow::before{content:"";width:6px;height:6px;background:currentColor}
+.p{margin:0 0 14px;color:var(--dim);font-size:16.5px;max-width:64ch}
+.p b,.lead b{color:var(--ink);font-weight:600}
+.p a,.fine a,.foot a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px}
+.p a:hover,.foot a:hover{text-decoration-color:var(--accent)}
+kbd{font:500 12px/1 var(--text);padding:3px 7px 4px;border-radius:5px;background:var(--sunk);border:1px solid var(--line-2);color:var(--accent-2);white-space:nowrap}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:16px 28px;font-size:17px;font-weight:700;text-decoration:none}
+.btn.dark{background:var(--ink);color:var(--bg)}
+.btn.ghost{background:var(--sunk);color:var(--ink)}
+.cta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.fine{font-size:13.5px;color:var(--dimmer);width:100%;margin:6px 0 0}
+
+/* ---------- hero: the wand is real ---------- */
+.hero{margin-top:72px}
+.stage{position:relative;margin:-56px 0 18px;height:110px}
+.stage canvas{position:absolute;left:-10px;top:0;width:220px;height:110px}
+.bubble{position:absolute;left:150px;top:26px;background:var(--bg);border:2px solid var(--ink);border-radius:18px 18px 18px 6px;padding:10px 15px;font-size:15px;font-weight:600;white-space:nowrap}
+@media (max-width:520px){.bubble{left:120px;font-size:13px}}
+
+.try{position:relative;margin-top:26px;border-radius:18px;background:var(--well);border:1px solid var(--line);overflow:hidden;
+  background-image:radial-gradient(var(--line-2) 1px,transparent 1px);background-size:18px 18px;height:min(52vw,360px);cursor:none;touch-action:none;user-select:none;-webkit-user-select:none}
+.try canvas{position:absolute;inset:0;width:100%;height:100%}
+.try .hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--dimmer);font-size:14px;pointer-events:none;transition:opacity .3s;text-align:center;line-height:1.5}
+.try.busy .hint{opacity:0}
+.try .book{position:absolute;left:12px;top:10px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+.try .book span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:3px 9px 3px 4px}
+.try .book canvas{position:static;width:18px;height:18px;border-radius:4px;background:var(--well)}
+.chip{position:absolute;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:9px;background:rgba(18,18,22,.94);border:1px solid var(--line-2);color:#ededf0;font-size:13px;white-space:nowrap;opacity:0;transform:translateY(4px);transition:opacity .16s,transform .16s;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.chip.on{opacity:1;transform:none}
+.chip.cast{border-color:rgba(245,192,74,.45)}
+.chip .star{color:#ffd64f}
+.chip b{font-weight:600}
+.chip .dim{color:#a5a3b0}
+.chip kbd{color:#c4b5fd;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16)}
+.chip .app{font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.3);color:#f5c04a}
+
+/* ---------- beats ---------- */
+.beats{display:grid;gap:14px;margin-top:6px}
+@media (min-width:700px){.beats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.beat{border-radius:18px;background:var(--sunk);padding:18px 18px 16px;position:relative}
+.beat .n{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--dimmer);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.beat .n i{width:8px;height:8px;background:var(--c,var(--accent))}
+.beat b{display:block;font-size:17px;margin-bottom:6px;font-family:var(--display);letter-spacing:-.02em}
+.beat p{margin:0;color:var(--dim);font-size:14.5px}
+
+/* ---------- runes ---------- */
+.runes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px}
+@media (min-width:640px){.runes{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.rune{border-radius:16px;background:var(--sunk);padding:14px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.rune canvas{width:100%;aspect-ratio:1;border-radius:10px;background:var(--well)}
+.rune b{font-size:14px}
+.rune .keys{display:flex;gap:4px}
+
+/* ---------- the overlay, drawn in HTML ---------- */
+.screen{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(160deg,#3b3f52,#22242f 45%,#15161d);aspect-ratio:16/9;margin-top:8px}
+.screen .veil{position:absolute;inset:0;background:rgba(6,4,14,.82)}
+.screen .win{position:absolute;left:8%;top:12%;width:84%;height:76%;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06)}
+.screen .rune-big{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:38%;max-width:220px}
+.screen .rune-big canvas{width:100%;aspect-ratio:1}
+.screen .chip{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);opacity:1}
+.screen .close{position:absolute;right:16px;top:16px;width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(20,14,40,.85);color:#ededf0;display:grid;place-items:center;font-size:12px}
+.screen .tag{position:absolute;left:16px;top:16px;font-size:11px;color:rgba(237,237,240,.55)}
+.panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(86%,380px);border-radius:12px;background:#131316;border:1px solid rgba(255,255,255,.16);box-shadow:0 30px 80px rgba(0,0,0,.6);padding:14px;display:flex;flex-direction:column;gap:12px;color:#ededf0;font-size:13px}
+.panel .hd{display:flex;justify-content:space-between;font-weight:600}
+.panel .hd span:last-child{font-weight:400;color:#86868f;font-size:12px}
+.panel .rw{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center}
+.panel .rw canvas{width:72px;height:72px;border-radius:8px;background:rgba(0,0,0,.35)}
+.panel .in{height:32px;border-radius:8px;background:rgba(0,0,0,.28);border:1px solid #a78bfa;display:flex;align-items:center;padding:0 10px}
+.panel .in i{width:1px;height:16px;background:#ededf0;margin-left:2px}
+.panel .seg{display:inline-flex;height:32px;border-radius:8px;overflow:hidden;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.16);font-size:12px}
+.panel .seg span{padding:0 12px;display:flex;align-items:center;color:#86868f}
+.panel .seg span.on{color:#ededf0;background:rgba(167,139,250,.18)}
+.panel .row2{display:grid;grid-template-columns:auto 1fr;gap:8px}
+.panel .keyb{height:32px;white-space:nowrap;overflow:hidden;border-radius:8px;background:rgba(0,0,0,.28);border:1px solid #a78bfa;display:flex;align-items:center;gap:4px;padding:0 10px;color:#86868f;font-size:12px}
+.panel .ft{display:flex;justify-content:flex-end;gap:6px}
+.panel .g{padding:6px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.16);color:#a5a3b0;font-size:12px}
+.panel .pr{padding:7px 12px;border-radius:7px;background:#a78bfa;color:#121216;font-weight:600;font-size:12px}
+.split{display:grid;gap:14px;margin-top:8px}
+@media (min-width:760px){.split{grid-template-columns:1fr 1fr}}
+
+/* ---------- spellbook window ---------- */
+.window{border-radius:14px;overflow:hidden;background:#09090b;border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 80px rgba(0,0,0,.5);color:#ededf0;font-size:12px;margin-top:8px}
+.window .tb{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+.window .lights{display:flex;gap:6px}
+.window .lights i{width:10px;height:10px;border-radius:50%;background:#3a3a40}
+.window .ttl{display:flex;align-items:center;gap:6px;font-weight:600}
+.window .ttl canvas{width:16px;height:16px}
+.window .body{display:grid;grid-template-columns:200px 1fr;gap:10px;padding:0 10px 10px}
+@media (max-width:640px){.window .body{grid-template-columns:1fr}}
+.window .pane{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-radius:9px;min-height:200px;padding:10px}
+.window .lab{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#86868f;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between}
+.window .sp{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center;padding:6px;border-radius:7px;border:1px solid transparent}
+.window .sp.on{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.35)}
+.window .sp canvas{width:34px;height:34px;border-radius:5px;background:rgba(0,0,0,.35)}
+.window .sp .keys{display:flex;gap:3px;margin-top:3px}
+.window .sp kbd{font-size:9.5px;padding:1px 4px}
+.window .forge{position:relative;height:150px;border-radius:7px;background:rgba(0,0,0,.35);background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1px);background-size:14px 14px;overflow:hidden}
+.window .forge canvas{position:absolute;inset:0;width:100%;height:100%}
+.window .fields{display:grid;grid-template-columns:1fr auto auto;gap:6px;margin-top:8px}
+.window .fld{height:28px;border-radius:7px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;padding:0 8px;gap:4px}
+.window .fld.seg{padding:0}
+.window .fld.seg span{padding:0 9px;height:100%;display:flex;align-items:center;color:#86868f}
+.window .fld.seg span.on{color:#ededf0;background:rgba(167,139,250,.18)}
+.window .acts{display:flex;justify-content:space-between;margin-top:8px}
+.window .acts span{padding:5px 9px;border-radius:6px;border:1px solid rgba(255,255,255,.14);color:#a5a3b0}
+.window .acts .pr{background:#a78bfa;color:#121216;border-color:transparent;font-weight:600}
+
+/* ---------- numbers ---------- */
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:640px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.stat{border-radius:16px;padding:18px 16px;background:var(--sunk);position:relative;overflow:hidden}
+.stat::after{content:"";position:absolute;left:14px;bottom:12px;width:6px;height:6px;background:var(--c)}
+.stat b{display:block;font-family:var(--display);font-weight:800;letter-spacing:-.04em;font-size:38px;line-height:1}
+.stat span{display:block;color:var(--dim);font-size:13.5px;margin-top:6px;padding-bottom:12px}
+
+/* ---------- install ---------- */
+pre{margin:0;background:rgba(0,0,0,.6);color:#e9e6f5;border-radius:14px;padding:16px 18px;font:13px/1.6 var(--mono);overflow:auto;border:1px solid var(--line)}
+:root[data-theme="light"] pre{background:#141318}
+pre .c{color:#8f8ca0}
+.grid2{display:grid;gap:12px;margin-top:8px}
+@media (min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
+.cell{border-radius:16px;background:var(--sunk);padding:16px}
+.cell b{display:block;margin-bottom:4px}
+.cell p{margin:0;color:var(--dim);font-size:14.5px}
+.foot{margin-top:28px;color:var(--dimmer);font-size:13.5px;display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center;padding:0 12px}
+</style>
+</head>
+<body>
+<div class="mesh" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div>
+<canvas id="stars" aria-hidden="true"></canvas>
+
+<div class="wrap">
+  <nav class="nav glass">
+    <a class="brand" href="./"><canvas class="wand-icon px" width="16" height="16"></canvas> Wandful</a>
+    <span class="right">
+      <span class="themes" role="group" aria-label="Theme">
+        <button type="button" data-theme-set="light" aria-pressed="false" title="Light">&#9728;</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false" title="Dark">&#9789;</button>
+        <button type="button" data-theme-set="system" aria-pressed="true" title="Match the system">A</button>
+      </span>
+      <a class="pill" href="#install">Get it &mdash; free</a>
+    </span>
+  </nav>
+
+  <!-- ================= HERO ================= -->
+  <section class="card glass hero">
+    <div class="stage" aria-hidden="true">
+      <canvas id="hero-wand" class="px"></canvas>
+      <span class="bubble">Go on &mdash; draw something.</span>
+    </div>
+    <h1 class="h1">Draw a rune.<br><span class="grad-text">Cast a shortcut.</span></h1>
+    <p class="lead">Every app has shortcuts nobody remembers. Wandful lets you draw them instead: a shape you can do without looking, bound to whatever keys &mdash; or whatever app &mdash; you want.</p>
+    <div class="cta">
+      <a class="btn dark" href="#install">Get Wandful</a>
+      <a class="btn ghost" href="#how">How it works</a>
+      <p class="fine">macOS and Windows &middot; free and MIT &middot; one small binary, no account, no cloud, no telemetry</p>
+    </div>
+    <div class="try" id="try" aria-label="A drawing area: hold the mouse button and draw a circle, a check mark or a caret to see the wand cast">
+      <div class="book" aria-hidden="true">
+        <span><canvas data-rune="circle" class="px"></canvas>Circle of Undo <kbd>&#8984;Z</kbd></span>
+        <span><canvas data-rune="check" class="px"></canvas>Check of Saving <kbd>&#8984;S</kbd></span>
+        <span><canvas data-rune="caret" class="px"></canvas>Summon Music</span>
+      </div>
+      <canvas id="try-canvas" class="px"></canvas>
+      <div class="hint">Hold a mouse button and draw a circle, a check or a caret<br><span style="font-size:12px">this is the app&rsquo;s own recognizer, running in your browser</span></div>
+      <div class="chip" id="try-chip"></div>
+    </div>
+  </section>
+
+  <!-- ================= HOW ================= -->
+  <section class="card glass" id="how">
+    <p class="eyebrow">Three beats</p>
+    <h2 class="h2">Summon. Draw. Release.</h2>
+    <div class="beats">
+      <div class="beat" style="--c:var(--cyan)"><div class="n"><i></i>01 SUMMON</div><b>The wand comes out</b><p>Press <kbd>&#8984;&#8679;M</kbd> (or <kbd>Ctrl&#8679;M</kbd>, or click the menu-bar icon). The screen dims a little and the wand follows your pointer, trailing sparks. Nothing is intercepted until this moment.</p></div>
+      <div class="beat" style="--c:var(--pink)"><div class="n"><i></i>02 DRAW</div><b>Any button, any shape</b><p>Hold a mouse button and draw. Size, angle and position don&rsquo;t matter &mdash; a rune is whatever shape you can repeat. A strictness dial decides how close it has to be.</p></div>
+      <div class="beat" style="--c:var(--gold)"><div class="n"><i></i>03 RELEASE</div><b>The spell is cast</b><p>Let go. The wand sheathes itself, focus returns to the app you were in, and the shortcut is typed there &mdash; or the app you chose opens.</p></div>
+    </div>
+    <p class="p" style="margin-top:22px">Changed your mind? Click without drawing, press <kbd>Esc</kbd>, or hit the &#10005; in the corner. Right-click, scroll and drag in other apps are never touched while the wand is away.</p>
+  </section>
+
+  <!-- ================= RUNES ================= -->
+  <section class="card glass" id="runes">
+    <p class="eyebrow">Runes</p>
+    <h2 class="h2">Not gestures someone chose for you.<br><span class="gold-text">Yours.</span></h2>
+    <p class="lead">There is no built-in alphabet to learn. You draw a rune once in the spellbook &mdash; or right on the screen the first time it fails to match &mdash; and from then on it is a spell.</p>
+    <div class="runes" aria-hidden="true">
+      <div class="rune"><canvas data-rune="circle" class="px"></canvas><b>Circle of Undo</b><span class="keys"><kbd>&#8984;</kbd><kbd>Z</kbd></span></div>
+      <div class="rune"><canvas data-rune="check" class="px"></canvas><b>Check of Saving</b><span class="keys"><kbd>&#8984;</kbd><kbd>S</kbd></span></div>
+      <div class="rune"><canvas data-rune="caret" class="px"></canvas><b>Summon Music</b><span class="keys"><span class="app-tag" style="font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.3);color:var(--gold-ui)">Music</span></span></div>
+      <div class="rune"><canvas data-rune="zig" class="px"></canvas><b>Bolt of Lock</b><span class="keys"><kbd>&#8963;</kbd><kbd>&#8984;</kbd><kbd>Q</kbd></span></div>
+    </div>
+    <p class="p" style="margin-top:20px">Under the hood it is the <b>$1 Unistroke</b> recognizer &mdash; about 170 lines of Rust that resample, rotate, scale and compare the path. Small enough to read in one sitting, fast enough that you never wait for it. The demo at the top of this page runs the same algorithm.</p>
+  </section>
+
+  <!-- ================= MAKE IT A SPELL ================= -->
+  <section class="card glass" id="bind">
+    <p class="eyebrow">Make it a spell</p>
+    <h2 class="h2">New spells are born where you cast them.</h2>
+    <p class="lead">Draw something no spell knows and the wand doesn&rsquo;t sulk &mdash; it asks. Name it, press the keys, and the rune you just drew is a spell. No settings window in between.</p>
+    <div class="split">
+      <div class="screen" aria-hidden="true">
+        <div class="win"></div><div class="veil"></div>
+        <span class="tag">wand out</span><span class="close">&#10005;</span>
+        <div class="rune-big"><canvas data-rune="zig" data-color="#a78bfa" class="px"></canvas></div>
+        <div class="chip on"><span>No spell matches this rune.</span><span class="pr" style="padding:5px 10px;border-radius:7px;background:#a78bfa;color:#121216;font-weight:600;font-size:12px">Make it a spell</span><span class="dim">or press <kbd>N</kbd></span></div>
+      </div>
+      <div class="screen" aria-hidden="true">
+        <div class="win"></div><div class="veil" style="background:rgba(6,4,14,.6)"></div>
+        <div class="panel">
+          <div class="hd"><span>New spell</span><span><kbd>Esc</kbd> closes</span></div>
+          <div class="rw"><canvas data-rune="zig" data-color="#a78bfa" data-cell="3" class="px"></canvas><div style="display:flex;flex-direction:column;gap:6px"><div class="in">Bolt of Lock<i></i></div><span style="font-size:11px;color:#86868f">Draw this rune with the wand to cast the spell.</span></div></div>
+          <div class="row2"><span class="seg"><span class="on">Shortcut</span><span>Open app</span></span><span class="keyb"><kbd>&#8963;</kbd><kbd>&#8984;</kbd> press the keys&hellip;</span></div>
+          <div class="ft"><span class="g">Cancel</span><span class="pr">Save spell</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="p" style="margin-top:20px">Missed a spell you do have? The wand says which one it nearly was and by how much (&ldquo;closest was Check of Saving at 61%&rdquo;) so you know whether to draw it again or turn strictness down a notch.</p>
+  </section>
+
+  <!-- ================= SPELLBOOK ================= -->
+  <section class="card glass" id="spellbook">
+    <p class="eyebrow">The spellbook</p>
+    <h2 class="h2">One window, and it stays out of the way.</h2>
+    <p class="lead">Every spell you have, the rune it answers to, and a canvas to draw new ones. Shortcuts are recorded by pressing them, not by typing their names. Apps are picked from a list.</p>
+    <div class="window" aria-hidden="true">
+      <div class="tb"><span class="lights"><i></i><i></i><i></i></span><span class="ttl"><canvas class="wand-icon px" width="16" height="16"></canvas>Wandful</span><span style="color:#86868f">Wand resting</span></div>
+      <div class="body">
+        <div class="pane">
+          <div class="lab"><span>Spells</span><span>+</span></div>
+          <div class="sp on"><canvas data-rune="circle" data-cell="2" class="px"></canvas><div>Circle of Undo<div class="keys"><kbd>&#8984;</kbd><kbd>Z</kbd></div></div></div>
+          <div class="sp"><canvas data-rune="check" data-cell="2" class="px"></canvas><div>Check of Saving<div class="keys"><kbd>&#8984;</kbd><kbd>S</kbd></div></div></div>
+          <div class="sp"><canvas data-rune="caret" data-cell="2" class="px"></canvas><div>Summon Music<div class="keys"><span style="font-size:9.5px;padding:1px 5px;border-radius:4px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.3);color:#f5c04a">Music</span></div></div></div>
+          <div class="sp"><canvas data-rune="zig" data-cell="2" class="px"></canvas><div>Bolt of Lock<div class="keys"><kbd>&#8963;</kbd><kbd>&#8984;</kbd><kbd>Q</kbd></div></div></div>
+        </div>
+        <div class="pane">
+          <div class="forge"><canvas id="forge-demo" class="px"></canvas></div>
+          <div class="fields"><span class="fld">Circle of Undo</span><span class="fld seg"><span class="on">Shortcut</span><span>Open app</span></span><span class="fld"><kbd>&#8984;</kbd><kbd>Z</kbd></span></div>
+          <div class="acts"><span style="display:flex;gap:6px"><span>Clear</span><span>Test</span></span><span class="pr">Save changes</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="p" style="margin-top:20px">Spells live in a plain <code>spellbook.json</code> in your config folder. Back it up, share it, edit it by hand. There is no account to lose it with.</p>
+  </section>
+
+  <!-- ================= NUMBERS ================= -->
+  <section class="card glass">
+    <div class="stats">
+      <div class="stat" style="--c:var(--gold)"><b>1</b><span>small binary, no runtime to install</span></div>
+      <div class="stat" style="--c:var(--pink)"><b>~170</b><span>lines of recognizer, readable in one sitting</span></div>
+      <div class="stat" style="--c:var(--violet)"><b>0</b><span>accounts, sign-ins, licence keys</span></div>
+      <div class="stat" style="--c:var(--cyan)"><b>0</b><span>bytes sent anywhere. Ever.</span></div>
+    </div>
+  </section>
+
+  <!-- ================= INSTALL ================= -->
+  <section class="card glass" id="install">
+    <p class="eyebrow">Get it</p>
+    <h2 class="h2">Free, open, early.</h2>
+    <p class="lead">Version 0.0.1. Builds for macOS (Apple silicon and Intel) and Windows are on the releases page; each one is built by GitHub Actions and carries a provenance attestation you can check.</p>
+    <div class="cta" style="margin-bottom:22px">
+      <a class="btn dark" href="https://github.com/ostapondo/wandful/releases/latest">Download the latest release</a>
+      <a class="btn ghost" href="https://github.com/ostapondo/wandful">Source on GitHub</a>
+    </div>
+    <p class="p">Or build it yourself in about a minute once <a href="https://rustup.rs">Rust</a>, Node&nbsp;20+ and the <a href="https://v2.tauri.app/start/prerequisites/">Tauri prerequisites</a> are there:</p>
+<pre><span class="c"># clone, install, run</span>
+git clone https://github.com/ostapondo/wandful &amp;&amp; cd wandful
+npm install
+npm run tauri dev
+
+<span class="c"># or a real app bundle</span>
+npm run tauri build</pre>
+    <div class="grid2">
+      <div class="cell"><b>macOS asks once for Accessibility</b><p>Typing a shortcut into another app and recording one without other apps&rsquo; hotkeys firing both need it. System Settings &rarr; Privacy &amp; Security &rarr; Accessibility &rarr; Wandful. Without it the wand still draws; it just can&rsquo;t cast.</p></div>
+      <div class="cell"><b>Windows needs nothing extra</b><p>Except: it can&rsquo;t send keys into a window running as Administrator unless Wandful runs as Administrator too. The overlay covers the primary monitor for now.</p></div>
+    </div>
+    <p class="p" style="margin-top:20px"><a href="https://github.com/ostapondo/wandful/blob/main/SECURITY.md">What the permission is used for, in checkable claims</a> &middot; <a href="https://github.com/ostapondo/wandful/blob/main/CHANGELOG.md">what changed</a> &middot; <a href="https://github.com/ostapondo/wandful/blob/main/ROADMAP.md">what&rsquo;s next</a> &middot; <a href="https://github.com/ostapondo/wandful/blob/main/CONTRIBUTING.md">how to help</a> &mdash; the most useful thing to send is a report from hardware nobody here has.</p>
+  </section>
+
+  <p class="foot">
+    <span>&copy; <a href="https://github.com/ostapondo">ostapondo</a> &middot; MIT</span>
+    <a href="https://github.com/ostapondo/wandful">GitHub</a>
+    <a href="https://github.com/ostapondo/wandful/discussions">Discussions</a>
+    <a href="https://github.com/ostapondo/wandful/issues">Issues</a>
+    <span>Shortcuts are spells. The set is your spellbook. Drawing one is a swish.</span>
+  </p>
+</div>
+
+<script>
+// ---------- theme ----------
+(function () {
+  var root = document.documentElement, KEY = 'wandful-theme';
+  var buttons = document.querySelectorAll('[data-theme-set]');
+  function apply(mode) {
+    if (mode === 'system') { root.removeAttribute('data-theme'); root.style.colorScheme = ''; }
+    else { root.setAttribute('data-theme', mode); root.style.colorScheme = mode; }
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-set') === mode)); });
+  }
+  var saved = null; try { saved = localStorage.getItem(KEY); } catch (e) {}
+  apply(saved === 'light' || saved === 'dark' ? saved : 'system');
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = b.getAttribute('data-theme-set');
+      try { m === 'system' ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, m); } catch (e) {}
+      apply(m);
+    });
+  });
+})();
+
+// ---------- the wand: the sprite the app draws, verbatim ----------
+var SPRITE = ["................","..w.............",".wGw............","..wBb...........","...Bb...........","....Bb..........",".....Bb.....W...","......Bb........",".......Bb.......","........DBb.....",".........DBb....","..........DDb...","...........DDb..","............DD..",".............D..","................"];
+var SC = { B: "#a0622d", b: "#d08a4a", D: "#5c3317", w: "#9ff5ff", G: "#ffffff", W: "#ffffff" };
+var TIP = { x: 2.5, y: 2.5 };
+var PALETTE = ["#ffd64f", "#ff7ad9", "#b06bff", "#7af0ff", "#ffffff", "#ffb347"];
+var GOLD = ["#ffd64f", "#fff3b0", "#ffb347", "#ffffff"];
+var SMOKE = ["#7c7c8c", "#a3a3b5", "#5c5c6c"];
+
+function fit(c) {
+  var dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  var ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false; return ctx;
+}
+function drawWand(ctx, at, px, t, casting) {
+  var ox = at.x - TIP.x * px, oy = at.y - TIP.y * px;
+  var bob = casting ? 0 : Math.round(Math.sin(t / 260) * 1.5);
+  for (var r = 0; r < 16; r++) for (var c = 0; c < 16; c++) {
+    var ch = SPRITE[r][c]; if (ch === '.') continue;
+    if ((ch === 'w' || ch === 'W') && Math.floor(t / 140 + r + c) % 4 === 0 && !casting) continue;
+    ctx.fillStyle = SC[ch]; ctx.fillRect(Math.round(ox + c * px), Math.round(oy + r * px + bob), px, px);
+  }
+  if (casting) { ctx.fillStyle = Math.floor(t / 80) % 2 ? '#fff' : '#9ff5ff'; ctx.fillRect(Math.round(at.x - px / 2), Math.round(at.y - px / 2), px, px); }
+}
+function strokeCells(pts, g) {
+  var out = [], seen = {};
+  function push(x, y) { var cx = Math.round(x / g) * g, cy = Math.round(y / g) * g, k = cx + ',' + cy; if (seen[k]) return; seen[k] = 1; out.push([cx, cy]); }
+  if (pts.length === 1) push(pts[0].x, pts[0].y);
+  for (var i = 1; i < pts.length; i++) { var a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / g)); for (var s = 0; s <= n; s++) { var t = s / n; push(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t); } }
+  return out;
+}
+function drawRuneCells(ctx, cells, g, color, alpha) {
+  ctx.fillStyle = color; ctx.globalAlpha = alpha * 0.22;
+  cells.forEach(function (c) { ctx.fillRect(c[0] - g, c[1] - g, g * 3, g * 3); });
+  ctx.globalAlpha = alpha; cells.forEach(function (c) { ctx.fillRect(c[0], c[1], g, g); }); ctx.globalAlpha = 1;
+}
+
+// A tiny particle wand, the same rules as src/wand/wand.ts (stepped alpha, pixel grid).
+function Wand(ctx, px) {
+  this.ctx = ctx; this.px = px; this.g = px; this.parts = []; this.stroke = []; this.alpha = 0; this.color = '#ff7ad9';
+  this.cursor = { x: -100, y: -100 }; this.visible = true; this.casting = false; this.persist = false; this.t = 0;
+}
+Wand.prototype.emit = function (p, n, colors, speed, tw) {
+  for (var i = 0; i < n; i++) { var a = Math.random() * 6.283, s = Math.random() * speed;
+    this.parts.push({ x: p.x + (Math.random() - .5) * 6, y: p.y + (Math.random() - .5) * 6, vx: Math.cos(a) * s * .4, vy: Math.sin(a) * s * .4 - .35, life: 0, max: 500 + Math.random() * 700, size: this.g * (Math.random() < .7 ? 1 : 2), color: colors[(Math.random() * colors.length) | 0], tw: tw }); }
+};
+Wand.prototype.burst = function (p, n, colors, speed) {
+  for (var i = 0; i < n; i++) { var a = Math.random() * 6.283, s = .6 + Math.random() * speed;
+    this.parts.push({ x: p.x, y: p.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - .4, life: 0, max: 600 + Math.random() * 600, size: this.g * (Math.random() < .6 ? 1 : 2), color: colors[(Math.random() * colors.length) | 0], tw: true }); }
+};
+Wand.prototype.start = function (p) { this.casting = true; this.stroke = [p]; this.alpha = 1; this.color = '#ff7ad9'; this.burst(p, 18, PALETTE, 2.2); };
+Wand.prototype.add = function (p) { var l = this.stroke[this.stroke.length - 1]; if (l) { var d = Math.hypot(p.x - l.x, p.y - l.y), n = Math.max(1, Math.floor(d / 4)); for (var i = 1; i <= n; i++) { var t = i / n; this.emit({ x: l.x + (p.x - l.x) * t, y: l.y + (p.y - l.y) * t }, 2, PALETTE, .9); } } this.stroke.push(p); };
+Wand.prototype.end = function (matched) {
+  this.casting = false; var tail = this.stroke[this.stroke.length - 1] || this.cursor;
+  if (matched) { this.color = '#ffd64f'; for (var i = 0; i < this.stroke.length; i += 3) this.emit(this.stroke[i], 2, GOLD, 1.8, true); this.burst(tail, 40, GOLD, 3.2); }
+  else { this.color = '#8a8aa0'; for (var j = 0; j < this.stroke.length; j += 4) this.emit(this.stroke[j], 1, SMOKE, .6); }
+};
+Wand.prototype.frame = function (dt) {
+  var ctx = this.ctx, g = this.g; this.t += dt;
+  if (this.visible && !this.casting && Math.random() < .12) this.emit(this.cursor, 1, PALETTE, .4, true);
+  if (this.stroke.length > 1 && this.alpha > 0) { if (!this.casting && !this.persist) this.alpha = Math.max(0, this.alpha - dt / 900); drawRuneCells(ctx, strokeCells(this.stroke, g), g, this.color, this.alpha); }
+  for (var i = this.parts.length - 1; i >= 0; i--) { var p = this.parts[i]; p.life += dt; if (p.life >= p.max) { this.parts.splice(i, 1); continue; }
+    p.x += p.vx * dt * .06; p.y += p.vy * dt * .06; p.vy += .004 * dt * .06; var t = p.life / p.max;
+    var a = t < .5 ? 1 : t < .75 ? .66 : t < .9 ? .33 : .15; if (p.tw && Math.floor(p.life / 90) % 2 === 0) a *= .55;
+    ctx.globalAlpha = a; ctx.fillStyle = p.color; var sz = t > .7 ? Math.max(g, p.size - g) : p.size; ctx.fillRect(Math.round(p.x / g) * g, Math.round(p.y / g) * g, sz, sz); }
+  ctx.globalAlpha = 1;
+  if (this.visible) drawWand(ctx, this.cursor, this.px, this.t, this.casting);
+};
+
+// ---------- $1 unistroke, the same maths as src-tauri/src/recognizer.rs ----------
+var N = 64, SIZE = 250, PHI = 0.5 * (-1 + Math.sqrt(5));
+function pathLength(p) { var d = 0; for (var i = 1; i < p.length; i++) d += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return d; }
+function resample(pts) { var I = pathLength(pts) / (N - 1), D = 0, out = [pts[0]], p = pts.slice(); for (var i = 1; i < p.length; i++) { var d = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); if (D + d >= I && d > 0) { var q = [p[i - 1][0] + ((I - D) / d) * (p[i][0] - p[i - 1][0]), p[i - 1][1] + ((I - D) / d) * (p[i][1] - p[i - 1][1])]; out.push(q); p.splice(i, 0, q); D = 0; } else D += d; } while (out.length < N) out.push(out[out.length - 1]); return out; }
+function centroid(p) { var x = 0, y = 0; p.forEach(function (q) { x += q[0]; y += q[1]; }); return [x / p.length, y / p.length]; }
+function rotateBy(p, a) { var c = centroid(p), cs = Math.cos(a), sn = Math.sin(a); return p.map(function (q) { return [(q[0] - c[0]) * cs - (q[1] - c[1]) * sn + c[0], (q[0] - c[0]) * sn + (q[1] - c[1]) * cs + c[1]]; }); }
+function normalize(pts) {
+  var p = resample(pts), c = centroid(p); p = rotateBy(p, -Math.atan2(c[1] - p[0][1], c[0] - p[0][0]));
+  var minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9; p.forEach(function (q) { minX = Math.min(minX, q[0]); minY = Math.min(minY, q[1]); maxX = Math.max(maxX, q[0]); maxY = Math.max(maxY, q[1]); });
+  var w = Math.max(maxX - minX, 1e-6), h = Math.max(maxY - minY, 1e-6); p = p.map(function (q) { return [q[0] * SIZE / w, q[1] * SIZE / h]; });
+  c = centroid(p); return p.map(function (q) { return [q[0] - c[0], q[1] - c[1]]; });
+}
+function pathDist(a, b) { var d = 0; for (var i = 0; i < a.length; i++) d += Math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1]); return d / a.length; }
+function distAtBest(p, t) { var a = -0.785, b = 0.785, x1 = PHI * a + (1 - PHI) * b, f1 = pathDist(rotateBy(p, x1), t), x2 = (1 - PHI) * a + PHI * b, f2 = pathDist(rotateBy(p, x2), t);
+  while (Math.abs(b - a) > 0.035) { if (f1 < f2) { b = x2; x2 = x1; f2 = f1; x1 = PHI * a + (1 - PHI) * b; f1 = pathDist(rotateBy(p, x1), t); } else { a = x1; x1 = x2; f1 = f2; x2 = (1 - PHI) * a + PHI * b; f2 = pathDist(rotateBy(p, x2), t); } } return Math.min(f1, f2); }
+function recognize(pts, book) { if (pts.length < 4) return null; var p = normalize(pts), best = null; book.forEach(function (s) { var d = distAtBest(p, s.tpl), score = 1 - d / (0.5 * Math.sqrt(2 * SIZE * SIZE)); if (!best || score > best.score) best = { spell: s, score: score }; }); return best; }
+
+// ---------- the demo spellbook ----------
+function circlePts(n) { var o = []; for (var i = 0; i <= n; i++) { var a = -Math.PI / 2 + i / n * 6.283; o.push([100 + 60 * Math.cos(a), 100 + 60 * Math.sin(a)]); } return o; }
+function linePts(c) { var o = []; for (var i = 1; i < c.length; i++) for (var k = 0; k < 12; k++) { var t = k / 12; o.push([c[i - 1][0] + (c[i][0] - c[i - 1][0]) * t, c[i - 1][1] + (c[i][1] - c[i - 1][1]) * t]); } o.push(c[c.length - 1]); return o; }
+var RUNES = { circle: circlePts(48), check: linePts([[20, 90], [60, 140], [150, 30]]), caret: linePts([[20, 140], [80, 20], [140, 140]]), zig: linePts([[20, 20], [140, 20], [20, 140], [140, 140]]) };
+var BOOK = [
+  { name: 'Circle of Undo', rune: 'circle', badge: '<kbd>&#8984;Z</kbd>' },
+  { name: 'Check of Saving', rune: 'check', badge: '<kbd>&#8984;S</kbd>' },
+  { name: 'Summon Music', rune: 'caret', badge: '<span class="app">Music</span>' }
+];
+BOOK.forEach(function (s) { s.tpl = normalize(RUNES[s.rune]); });
+var STRICTNESS = 0.8;
+
+// rune thumbnails everywhere: fit the points into the canvas on a pixel grid
+function drawRunePreview(c) {
+  var pts = RUNES[c.getAttribute('data-rune')], color = c.getAttribute('data-color') || '#c4b5fd', g = +(c.getAttribute('data-cell') || 0);
+  var ctx = fit(c), w = c.clientWidth, h = c.clientHeight; if (!w) return; ctx.clearRect(0, 0, w, h);
+  g = g || Math.max(2, Math.round(w / 22));
+  var minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9; pts.forEach(function (p) { minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); });
+  var pad = w * .16, s = Math.min((w - pad * 2) / (maxX - minX), (h - pad * 2) / (maxY - minY)), ox = (w - (maxX - minX) * s) / 2 - minX * s, oy = (h - (maxY - minY) * s) / 2 - minY * s;
+  drawRuneCells(ctx, strokeCells(pts.map(function (p) { return { x: p[0] * s + ox, y: p[1] * s + oy }; }), g), g, color, 1);
+  ctx.fillStyle = '#ffd64f'; ctx.fillRect(Math.round(pts[0][0] * s + ox) - g, Math.round(pts[0][1] * s + oy) - g, g * 2, g * 2);
+}
+function drawAllPreviews() { document.querySelectorAll('canvas[data-rune]').forEach(drawRunePreview); }
+drawAllPreviews(); window.addEventListener('resize', drawAllPreviews);
+
+// brand icons
+document.querySelectorAll('.wand-icon').forEach(function (c) { var ctx = c.getContext('2d'); for (var r = 0; r < 16; r++) for (var k = 0; k < 16; k++) { var ch = SPRITE[r][k]; if (ch !== '.') { ctx.fillStyle = SC[ch]; ctx.fillRect(k, r, 1, 1); } } });
+
+// stars
+(function () { var c = document.getElementById('stars'), stars = []; for (var i = 0; i < 90; i++) stars.push({ x: Math.random(), y: Math.random(), z: Math.random(), t: Math.random() * 1000 });
+  function frame(now) { var ctx = fit(c), w = c.clientWidth, h = c.clientHeight; ctx.clearRect(0, 0, w, h); var dark = getComputedStyle(document.documentElement).colorScheme !== 'light' && document.documentElement.getAttribute('data-theme') !== 'light';
+    stars.forEach(function (s) { var tw = (Math.sin(now / 700 + s.t) + 1) / 2; ctx.globalAlpha = (dark ? .15 : .25) + tw * .5 * s.z; ctx.fillStyle = s.z > .92 ? '#f5c04a' : dark ? '#d6d6dc' : '#7c5cf0'; var sz = s.z > .8 ? 2 : 1; ctx.fillRect(Math.round(s.x * w), Math.round(s.y * h), sz, sz); });
+    ctx.globalAlpha = 1; requestAnimationFrame(frame); } requestAnimationFrame(frame); })();
+
+// hero wand: bobs in the stage, drawing a slow figure
+(function () { var c = document.getElementById('hero-wand'), ctx = fit(c), w = new Wand(ctx, 5); var last = performance.now();
+  function frame(now) { var dt = Math.min(50, now - last); last = now; ctx = fit(c); ctx.clearRect(0, 0, c.clientWidth, c.clientHeight); w.ctx = ctx;
+    var t = now / 1000; w.cursor = { x: 60 + Math.cos(t * .9) * 22, y: 52 + Math.sin(t * 1.3) * 16 }; w.frame(dt); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame); })();
+
+// forge demo: replays the circle now and then
+(function () { var c = document.getElementById('forge-demo'); if (!c) return; var ctx = fit(c), w = new Wand(ctx, 3); w.persist = true; w.visible = false; var last = performance.now(), i = 0, pts = RUNES.circle, phase = 0, wait = 0;
+  function frame(now) { var dt = Math.min(50, now - last); last = now; ctx = fit(c); var W = c.clientWidth, H = c.clientHeight; ctx.clearRect(0, 0, W, H); w.ctx = ctx;
+    var s = Math.min(W, H) * .0032, ox = W / 2 - 100 * s, oy = H / 2 - 100 * s;
+    if (phase === 0) { wait += dt; if (wait > 1400) { phase = 1; i = 0; w.visible = true; w.start({ x: pts[0][0] * s + ox, y: pts[0][1] * s + oy }); } }
+    else if (phase === 1) { i += dt / 28; var k = Math.min(pts.length - 1, Math.floor(i)); var p = { x: pts[k][0] * s + ox, y: pts[k][1] * s + oy }; w.cursor = p; w.add(p); if (k >= pts.length - 1) { phase = 2; wait = 0; w.end(null); } }
+    else { wait += dt; if (wait > 2600) { phase = 0; wait = 0; w.visible = false; w.stroke = []; w.alpha = 0; } }
+    w.frame(dt); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame); })();
+
+// the real thing: draw in the box, the page recognizes it
+(function () {
+  var box = document.getElementById('try'), c = document.getElementById('try-canvas'), chip = document.getElementById('try-chip');
+  var ctx = fit(c), w = new Wand(ctx, 3), pts = [], drawing = false, down = null, chipTimer = 0;
+  w.visible = false;
+  function local(e) { var r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function showChip(html, cls, at) { chip.innerHTML = html; chip.className = 'chip on ' + cls; var bw = chip.offsetWidth, bh = chip.offsetHeight, W = c.clientWidth, H = c.clientHeight;
+    chip.style.left = Math.min(Math.max(10, at.x - bw / 2), W - bw - 10) + 'px'; chip.style.top = (at.y + 26 + bh > H - 10 ? at.y - bh - 26 : at.y + 26) + 'px';
+    clearTimeout(chipTimer); chipTimer = setTimeout(function () { chip.className = 'chip'; }, 2600); }
+  c.addEventListener('pointerenter', function () { w.visible = true; box.classList.add('busy'); });
+  c.addEventListener('pointerleave', function () { if (!drawing) w.visible = false; });
+  c.addEventListener('pointerdown', function (e) { e.preventDefault(); c.setPointerCapture(e.pointerId); down = local(e); w.cursor = down; chip.className = 'chip'; });
+  c.addEventListener('pointermove', function (e) { var p = local(e); w.cursor = p; if (drawing) { pts.push(p); w.add(p); } else if (down && Math.hypot(p.x - down.x, p.y - down.y) > 6) { drawing = true; pts = [down, p]; w.persist = false; w.start(down); w.add(p); } });
+  function up() { if (!drawing) { down = null; return; } drawing = false; down = null; var tail = pts[pts.length - 1];
+    var r = recognize(pts.map(function (p) { return [p.x, p.y]; }), BOOK); pts = [];
+    if (r && r.score >= STRICTNESS) { w.end(true); showChip('<span class="star">&#10022;</span><b>' + r.spell.name + '</b>' + r.spell.badge, 'cast', tail); }
+    else { w.end(false); w.persist = true; w.color = '#a78bfa'; w.alpha = 1;
+      showChip(r ? '<span class="dim">Fizzled &mdash; closest was <b style="color:#ededf0">' + r.spell.name + '</b> at ' + Math.round(r.score * 100) + '%.</span>' : 'No spell matches this rune.', '', tail); } }
+  c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+  c.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  var last = performance.now();
+  function frame(now) { var dt = Math.min(50, now - last); last = now; ctx = fit(c); ctx.clearRect(0, 0, c.clientWidth, c.clientHeight); w.ctx = ctx;
+    if (w.visible) { var g = ctx.createRadialGradient(w.cursor.x, w.cursor.y, 0, w.cursor.x, w.cursor.y, 120); g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(w.cursor.x - 120, w.cursor.y - 120, 240, 240); }
+    w.frame(dt); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
