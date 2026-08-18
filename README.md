@@ -2,9 +2,11 @@
 and the shortcut you bound to it is cast.</strong><br>
 <sub>Shortcuts are spells. The set you keep is your spellbook. Drawing one is a swish.</sub></p>
 
+<p align="center"><a href="https://ostapondo.github.io/wandful/">ostapondo.github.io/wandful</a> — try the recognizer in your browser</p>
+
 <p align="center">
   <img alt="Version" src="https://img.shields.io/github/v/release/ostapondo/wandful?style=flat-square&color=8b5cf6&label=version&include_prereleases">
-  <img alt="macOS + Windows" src="https://img.shields.io/badge/macOS%20%7C%20Windows-3a6bff?style=flat-square">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-3a6bff?style=flat-square">
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-ff4f81?style=flat-square">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-12d3a4?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-ffc531?style=flat-square">
@@ -25,8 +27,8 @@ a stroke you can do without looking, bound to whatever key combination — or
 whatever app — you want. One small binary, a native window, no accounts, no
 network.
 
-- **A wand that follows the cursor.** Summon it from the tray, the spellbook
-  window, or with `⌘⇧M` / `Ctrl+Shift+M` (changeable in Settings). The screen
+- **A wand that follows the cursor.** Summon it from the menu bar, the
+  spellbook window, or with `⌘⇧M` (changeable in Settings). The screen
   dims, the wand appears, and sparks trail behind it while you draw.
 - **Nothing is intercepted while the wand is away.** Your mouse and keyboard
   behave exactly as before; Wandful only steps in while the overlay is up (and
@@ -38,9 +40,10 @@ network.
 - **Spells cast a shortcut or open an app.** Recorded by pressing the keys, not
   by typing their names.
 
-**It is early.** Version 0.1, one author, two platforms. The spellbook format
-may still change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it does.
-Linux is not built or tested — see [ROADMAP.md](ROADMAP.md).
+**It is early.** Version 0.0.1, one author, macOS only for now. The spellbook
+format may still change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it
+does. Windows compiles but is untested on real hardware, and Linux is not
+built or tested — both are on [ROADMAP.md](ROADMAP.md).
 
 ## Install
 
@@ -51,9 +54,8 @@ cut; each one is built by GitHub Actions and carries a provenance attestation
 you can check with `gh attestation verify <file> -R ostapondo/wandful`.
 
 **Prerequisites.** [Rust](https://rustup.rs) (stable), Node 20+, and the
-[Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your
-OS. On macOS that is Xcode Command Line Tools; on Windows, the Visual Studio
-C++ build tools and WebView2 (already on Windows 11).
+[Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) — on macOS
+that is Xcode Command Line Tools.
 
 ```sh
 git clone https://github.com/ostapondo/wandful && cd wandful
@@ -61,7 +63,6 @@ npm install
 npm run tauri dev        # run it
 npm run tauri build      # or build a real app
 # macOS:   src-tauri/target/release/bundle/macos/Wandful.app  (+ .dmg)
-# Windows: src-tauri/target/release/bundle/nsis/*.exe / msi/*.msi
 ```
 
 ### macOS: the Accessibility permission
@@ -84,16 +85,10 @@ npm run build:mac                 # tauri build + re-sign with that identity
 [SECURITY.md](SECURITY.md) says exactly what the permission is used for and
 what the app does not do.
 
-### Windows
-
-No extra permissions. Shortcuts cannot be sent into windows running as
-Administrator unless Wandful also runs as Administrator. The overlay covers the
-primary monitor.
-
 ## Using it
 
-1. Summon the wand: **left-click the tray icon** (right-click opens the menu),
-   press `⌘⇧M` / `Ctrl+Shift+M`, or use the button in the spellbook window.
+1. Summon the wand: **left-click the menu-bar icon** (right-click opens the
+   menu), press `⌘⇧M`, or use the button in the spellbook window.
 2. Hold **any mouse button** and draw a rune. Release, and the matching spell
    is cast into the app you were in; the wand goes away by itself.
 3. Drew something no spell knows? The wand offers **Make it a spell** right
@@ -105,10 +100,14 @@ primary monitor.
    in the list to edit or delete it. The spellbook starts empty; every rune and
    shortcut is yours. **Strictness** controls how precise the rune must be.
 
+<p align="center">
+  <img src="docs/spellbook.gif" width="720"
+       alt="The Wandful spellbook: a list of spells with their pixel runes and shortcuts on the left, and on the right a drawing canvas where the wand has just traced a circle, with name, action and shortcut fields below">
+</p>
+
 Spells are stored in `spellbook.json` in the app config directory
-(`~/Library/Application Support/com.ostap.wandful/` on macOS,
-`%APPDATA%\com.ostap.wandful\` on Windows). Back it up, share it, edit it by
-hand — it is plain JSON.
+(`~/Library/Application Support/com.ostap.wandful/`). Back it up, share it,
+edit it by hand — it is plain JSON.
 
 ## How it works
 
@@ -148,8 +147,8 @@ cost an hour.
 Bug reports, runes, and code are all welcome, and none of them needs a signing
 certificate. [CONTRIBUTING.md](CONTRIBUTING.md) has how to get it building,
 what to pick, and what a pull request should carry. The most useful thing to
-send is a report from hardware nobody here has: a second monitor, a Windows
-laptop with a trackpad, a Retina screen next to a 1× one — the
+send is a report from hardware nobody here has: a second monitor, any Windows
+machine at all, a Retina screen next to a 1× one — the
 [needs-hardware](https://github.com/ostapondo/wandful/issues?q=is%3Aissue+is%3Aopen+label%3Aneeds-hardware)
 label is that list.
 

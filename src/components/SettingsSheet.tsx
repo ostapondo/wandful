@@ -6,8 +6,13 @@ import { useApp } from "../state/app";
 import { useNativeChange } from "./hooks";
 import { KeyRecorderButton } from "./KeyRecorderButton";
 
+/** Mounted only while open, so the native-change listeners attach to real inputs. */
 export function SettingsSheet() {
   const open = useApp((s) => s.settingsOpen);
+  return open ? <SettingsSheetBody /> : null;
+}
+
+function SettingsSheetBody() {
   const openSettings = useApp((s) => s.openSettings);
   const book = useApp((s) => s.book);
   const setBook = useApp((s) => s.setBook);
@@ -47,7 +52,6 @@ export function SettingsSheet() {
     useCallback((v: string) => save({ overlay_opacity: Number(v) }), [save]),
   );
 
-  if (!open) return null;
   const color = draftColor ?? book.overlay_color;
   const opacity = draftOpacity ?? book.overlay_opacity;
   const close = () => openSettings(false);

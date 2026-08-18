@@ -659,7 +659,8 @@ fn spawn_worker(app: AppHandle, rx: mpsc::Receiver<Msg>) {
 fn init_logging() {
     let mut builder =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
-    if let Some(home) = std::env::var_os("HOME") {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+    if let Some(home) = home {
         let dir = std::path::PathBuf::from(home).join(if cfg!(target_os = "macos") {
             "Library/Logs/Wandful"
         } else {

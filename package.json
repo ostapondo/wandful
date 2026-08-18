@@ -1,7 +1,7 @@
 {
   "name": "wandful",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "A pixel-art magic wand that casts keyboard shortcuts from mouse gestures",
   "license": "MIT",
   "repository": {
