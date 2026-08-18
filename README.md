@@ -38,7 +38,7 @@ network.
 - **Spells cast a shortcut or open an app.** Recorded by pressing the keys, not
   by typing their names.
 
-**It is early.** Version 0.1, one author, two platforms. The spellbook format
+**It is early.** Version 0.0.1, one author, two platforms. The spellbook format
 may still change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it does.
 Linux is not built or tested — see [ROADMAP.md](ROADMAP.md).
 

@@ -1,6 +1,6 @@
 [package]
 name = "wandful"
-version = "0.1.0"
+version = "0.0.1"
 description = "Wandful — a pixel-art magic wand that casts keyboard shortcuts from mouse gestures"
 authors = ["ostapondo"]
 edition = "2021"

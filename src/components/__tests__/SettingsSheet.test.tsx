@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useApp } from "../../state/app";
 import { resetStores } from "../../test/fixtures";
@@ -42,6 +42,15 @@ describe("<SettingsSheet>", () => {
     expect(app().book.overlay_opacity).toBe(0.9); // not saved yet
     fireEvent.change(range, { target: { value: "0.5" } });
     await waitFor(() => expect(app().book.overlay_opacity).toBe(0.5));
+  });
+
+  it("saves on commit even when opened after mounting (regression)", async () => {
+    useApp.setState({ settingsOpen: false });
+    const { container } = render(<SettingsSheet />);
+    act(() => useApp.setState({ settingsOpen: true }));
+    const range = container.querySelector('input[type="range"]') as HTMLInputElement;
+    fireEvent.change(range, { target: { value: "0.4" } });
+    await waitFor(() => expect(app().book.overlay_opacity).toBe(0.4));
   });
 
   it("reset restores defaults and says so", async () => {

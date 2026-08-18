@@ -7,6 +7,10 @@ may change the spellbook format — the changelog says so when they do.
 
 ## [Unreleased]
 
+## [0.0.1] — 2026-08-18
+
+First tagged build. Everything below is new.
+
 ### Added
 - Pixel-art wand that follows the cursor: summon it, hold a mouse button and
   draw a rune, release to cast the bound shortcut.
@@ -27,4 +31,5 @@ may change the spellbook format — the changelog says so when they do.
   Cast and fizzle outcomes show as a quiet chip under the stroke; the rune
   itself is drawn on the same pixel grid as the sparks.
 
-[Unreleased]: https://github.com/ostapondo/wandful/commits/main
+[Unreleased]: https://github.com/ostapondo/wandful/compare/v0.0.1...main
+[0.0.1]: https://github.com/ostapondo/wandful/releases/tag/v0.0.1
