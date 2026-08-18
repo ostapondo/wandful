@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
+const root = import.meta.dirname;
+
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
@@ -15,12 +17,12 @@ export default defineConfig({
   },
   build: {
     target: ["es2022", "chrome105", "safari13"],
-    minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
+    minify: !process.env.TAURI_DEBUG,
     sourcemap: !!process.env.TAURI_DEBUG,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        overlay: resolve(__dirname, "overlay.html"),
+        main: resolve(root, "index.html"),
+        overlay: resolve(root, "overlay.html"),
       },
     },
   },
