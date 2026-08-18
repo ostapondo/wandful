@@ -107,6 +107,11 @@ primary monitor.
    in the list to edit or delete it. The spellbook starts empty; every rune and
    shortcut is yours. **Strictness** controls how precise the rune must be.
 
+<p align="center">
+  <img src="docs/spellbook.png" width="720"
+       alt="The Wandful spellbook: a list of spells with their pixel runes and shortcuts on the left, and on the right a drawing canvas where the wand has just traced a circle, with name, action and shortcut fields below">
+</p>
+
 Spells are stored in `spellbook.json` in the app config directory
 (`~/Library/Application Support/com.ostap.wandful/` on macOS,
 `%APPDATA%\com.ostap.wandful\` on Windows). Back it up, share it, edit it by
