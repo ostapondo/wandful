@@ -1,6 +1,7 @@
-<p align="center"><strong>A magic wand for your desktop. Summon it, draw a rune,
-and the shortcut you bound to it is cast.</strong><br>
-<sub>Shortcuts are spells. The set you keep is your spellbook. Drawing one is a swish.</sub></p>
+<h1 align="center">Wandful</h1>
+
+<p align="center"><strong>Draw a shape with the mouse — a keyboard shortcut fires.</strong><br>
+<sub>Press <code>⌘⇧M</code>, draw a ✓, release: Slack marks all read. Draw a Z: Zoom opens. Any shape you can repeat, any shortcut or app.</sub></p>
 
 <p align="center"><a href="https://ostapondo.github.io/wandful/">ostapondo.github.io/wandful</a> — try the recognizer in your browser</p>
 
@@ -13,8 +14,6 @@ and the shortcut you bound to it is cast.</strong><br>
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ostapondo/wandful/ci.yml?style=flat-square&label=CI">
 </p>
 
-<h1 align="center">Wandful</h1>
-
 <p align="center">
   <img src="docs/wand.gif" width="360"
        alt="A pixel-art wand follows the cursor, traces a glowing rune, and bursts into sparks when the spell is cast">
@@ -22,23 +21,27 @@ and the shortcut you bound to it is cast.</strong><br>
 
 ## What it is
 
-Every app has shortcuts nobody remembers. Wandful lets you draw them instead:
-a stroke you can do without looking, bound to whatever key combination — or
-whatever app — you want. One small binary, a native window, no accounts, no
-network.
+Wandful is a mouse-gesture launcher for keyboard shortcuts. Instead of
+remembering `⌘⇧A`, you draw a shape you can do without looking, and Wandful
+types the shortcut into the app you were using — or opens the app you chose.
 
-- **A wand that follows the cursor.** Summon it from the menu bar, the
-  spellbook window, or with `⌘⇧M` (changeable in Settings). The screen
-  dims, the wand appears, and sparks trail behind it while you draw.
-- **Nothing is intercepted while the wand is away.** Your mouse and keyboard
-  behave exactly as before; Wandful only steps in while the overlay is up (and
-  for the moment you record a shortcut). A plain click, `Esc`, or the close
-  button sheathes the wand again.
-- **Any rune you like.** The `$1 Unistroke` recognizer is rotation-, scale- and
-  position-invariant, so a rune is whatever shape you can repeat. A strictness
-  setting decides how close it has to be.
-- **Spells cast a shortcut or open an app.** Recorded by pressing the keys, not
-  by typing their names.
+1. Press `⌘⇧M` (or click the menu-bar icon). The screen dims and a wand
+   appears under the cursor.
+2. Hold a mouse button, draw your shape, release.
+3. The shortcut bound to it fires in the app you came from. Done.
+
+- **You draw your own shapes.** No alphabet to learn: draw a shape once, name
+  it, press the keys — it is bound. Draw an unknown shape and Wandful offers to
+  bind it on the spot. A strictness slider decides how neat it has to be.
+- **Nothing is intercepted until you call it.** Mouse and keyboard behave
+  exactly as before; Wandful only listens while the wand is on screen. Click,
+  `Esc`, or ✕ puts it away.
+- **Small and local.** One binary, no account, no network, spells in a plain
+  JSON file you own. Free, MIT.
+
+Like BetterTouchTool's or StrokeMouse's gestures, but the shapes are yours and
+it only listens when you ask. If you like the metaphor: a shortcut is a
+*spell*, your set is the *spellbook*, drawing one is a *swish*.
 
 **It is early.** Version 0.0.1, one author, macOS only for now. The spellbook
 format may still change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it
