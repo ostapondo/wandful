@@ -108,7 +108,7 @@ primary monitor.
    shortcut is yours. **Strictness** controls how precise the rune must be.
 
 <p align="center">
-  <img src="docs/spellbook.png" width="720"
+  <img src="docs/spellbook.gif" width="720"
        alt="The Wandful spellbook: a list of spells with their pixel runes and shortcuts on the left, and on the right a drawing canvas where the wand has just traced a circle, with name, action and shortcut fields below">
 </p>
 
