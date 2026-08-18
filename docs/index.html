@@ -116,13 +116,16 @@ a{color:inherit}
 code{font-family:var(--mono);font-size:.92em}
 .px{image-rendering:pixelated;image-rendering:crisp-edges}
 
-/* ---------- the mesh: the sparks, out of focus ---------- */
-.mesh{position:fixed;inset:-22%;z-index:-1;filter:blur(64px);opacity:var(--mesh-opacity);pointer-events:none}
-.mesh i{position:absolute;display:block;border-radius:50%}
-.mesh .a{width:56%;height:44%;left:-8%;top:-2%;background:var(--violet)}
-.mesh .b{width:50%;height:40%;right:-10%;top:16%;background:var(--pink)}
-.mesh .c{width:44%;height:36%;left:10%;bottom:8%;background:var(--cyan)}
-.mesh .d{width:40%;height:32%;right:4%;bottom:-6%;background:var(--gold)}
+/* ---------- the mesh: the sparks, out of focus ----------
+   Soft radial gradients rather than a blurred layer: a fixed, filtered
+   element the size of the viewport is exactly what Safari drops from the
+   compositor after a long scroll, and then the page goes flat black. */
+.mesh{position:fixed;inset:0;z-index:-1;opacity:var(--mesh-opacity);pointer-events:none;overflow:hidden}
+.mesh i{position:absolute;display:block;border-radius:50%;will-change:transform}
+.mesh .a{width:70vw;height:70vw;left:-20vw;top:-25vw;background:radial-gradient(closest-side,var(--violet),transparent 72%)}
+.mesh .b{width:64vw;height:64vw;right:-22vw;top:2vw;background:radial-gradient(closest-side,var(--pink),transparent 72%)}
+.mesh .c{width:60vw;height:60vw;left:0;bottom:-24vw;background:radial-gradient(closest-side,var(--cyan),transparent 72%)}
+.mesh .d{width:54vw;height:54vw;right:-6vw;bottom:-28vw;background:radial-gradient(closest-side,var(--gold),transparent 72%)}
 @keyframes f1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(9%,7%) scale(1.18)}}
 @keyframes f2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-8%,10%) scale(.92)}}
 @keyframes f3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(7%,-9%) scale(1.15)}}
@@ -583,7 +586,9 @@ document.querySelectorAll('.wand-icon').forEach(function (c) { var ctx = c.getCo
 
 // stars
 (function () { var c = document.getElementById('stars'), stars = []; for (var i = 0; i < 90; i++) stars.push({ x: Math.random(), y: Math.random(), z: Math.random(), t: Math.random() * 1000 });
-  function frame(now) { var ctx = fit(c), w = c.clientWidth, h = c.clientHeight; ctx.clearRect(0, 0, w, h); var dark = getComputedStyle(document.documentElement).colorScheme !== 'light' && document.documentElement.getAttribute('data-theme') !== 'light';
+  var mq = window.matchMedia('(prefers-color-scheme: light)');
+  function isDark() { var t = document.documentElement.getAttribute('data-theme'); return t ? t === 'dark' : !mq.matches; }
+  function frame(now) { var ctx = fit(c), w = c.clientWidth, h = c.clientHeight; ctx.clearRect(0, 0, w, h); var dark = isDark();
     stars.forEach(function (s) { var tw = (Math.sin(now / 700 + s.t) + 1) / 2; ctx.globalAlpha = (dark ? .15 : .25) + tw * .5 * s.z; ctx.fillStyle = s.z > .92 ? '#f5c04a' : dark ? '#d6d6dc' : '#7c5cf0'; var sz = s.z > .8 ? 2 : 1; ctx.fillRect(Math.round(s.x * w), Math.round(s.y * h), sz, sz); });
     ctx.globalAlpha = 1; requestAnimationFrame(frame); } requestAnimationFrame(frame); })();
 
