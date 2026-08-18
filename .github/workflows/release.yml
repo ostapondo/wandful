@@ -68,9 +68,8 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            args: ""
+          # Windows is on the roadmap: the code compiles there, but nobody has
+          # run it on real hardware yet, so it is not shipped.
     runs-on: ${{ matrix.os }}
     env:
       # `secrets` cannot be read in a step's `if`; this can.
