@@ -22,6 +22,7 @@ let actionKind: "shortcut" | "app" = "shortcut";
 let appPath = "";
 let appName = "";
 let forgePoints: Pt[] = [];
+let replaying = false;
 
 // ---------- sparse starfield ----------
 (function stars() {
@@ -79,6 +80,7 @@ forge.addEventListener("pointerleave", () => { if (!drawing) fwand.visible = fal
 forge.addEventListener("pointerdown", (e) => {
   if (e.button !== 0 && e.button !== 2) return;
   e.preventDefault();
+  replayToken++; replaying = false; // interrupt a running replay
   forge.setPointerCapture(e.pointerId);
   drawing = true;
   const p = local(e);
@@ -88,6 +90,7 @@ forge.addEventListener("pointerdown", (e) => {
   setMsg("");
 });
 forge.addEventListener("pointermove", (e) => {
+  if (replaying) return; // the wand is busy replaying a rune
   const p = local(e);
   fwand.moveTo(p);
   if (drawing) forgePoints.push(p);
@@ -184,6 +187,7 @@ function replay(pts: Pt[]) {
   const token = ++replayToken;
   fwand.clear();
   if (pts.length < 2) return;
+  replaying = true;
   fwand.visible = true;
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
@@ -193,7 +197,7 @@ function replay(pts: Pt[]) {
   let idx = 0;
   fwand.start(pts[0]);
   function step(now: number) {
-    if (token !== replayToken) return;
+    if (token !== replayToken) { replaying = false; return; }
     const t = Math.min(1, (now - t0) / dur);
     const target = t * total;
     while (idx + 1 < pts.length && cum[idx + 1] <= target) { idx++; fwand.addPoint(pts[idx]); }
@@ -207,6 +211,7 @@ function replay(pts: Pt[]) {
     else {
       while (idx + 1 < pts.length) { idx++; fwand.addPoint(pts[idx]); }
       fwand.end(null);
+      replaying = false;
       if (!forge.matches(":hover")) fwand.visible = false;
     }
   }
@@ -214,7 +219,7 @@ function replay(pts: Pt[]) {
 }
 
 function resetForge() {
-  replayToken++;
+  replayToken++; replaying = false;
   editingId = "";
   forgePoints = [];
   fwand.clear();
