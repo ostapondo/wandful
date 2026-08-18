@@ -1,7 +1,7 @@
 <h1 align="center">Wandful</h1>
 
 <p align="center"><strong>Draw a shape with the mouse — a keyboard shortcut fires.</strong><br>
-<sub>Press <code>⌘⇧M</code>, draw a ✓, release: Slack marks all read. Draw a Z: Zoom opens. Any shape you can repeat, any shortcut or app.</sub></p>
+<sub>Press <code>⌘⇧M</code>, draw a ✓, release: Slack marks all read. Draw a circle: Terminal opens. Any shape you can repeat, any shortcut or app.</sub></p>
 
 <p align="center"><a href="https://ostapondo.github.io/wandful/">ostapondo.github.io/wandful</a> — try the recognizer in your browser</p>
 
