@@ -1,9 +1,10 @@
 import { useRef } from "react";
 import { api } from "../api/tauri";
 import type { ActionKind, Spell } from "../api/types";
+import { SYSTEM_ACTIONS } from "../lib/system";
 import { toPairs } from "../lib/geometry";
 import { pickApp } from "../api/dialog";
-import { isMac, useApp } from "../state/app";
+import { isMac, selectIsMac, useApp } from "../state/app";
 import { useForge } from "../state/forge";
 import { ActionLabel, AppIcon } from "./Keys";
 import { KeyRecorderButton } from "./KeyRecorderButton";
@@ -14,6 +15,10 @@ export function SpellForm() {
   // Render reads the store reactively; handlers read a fresh snapshot.
   const view = useForge();
   const editing = !!view.editingId;
+  // System actions call Windows APIs that have no counterpart wired up on
+  // macOS, so the segment is not offered there.
+  const mac = useApp(selectIsMac);
+  const kinds: ActionKind[] = mac ? ["shortcut", "app"] : ["shortcut", "app", "system"];
 
   async function test() {
     const f = useForge.getState();
@@ -43,6 +48,7 @@ export function SpellForm() {
     }
     if (f.kind === "shortcut" && !f.shortcut) return f.setMsg("Pick a shortcut");
     if (f.kind === "app" && !f.app.path) return f.setMsg("Choose an application");
+    if (f.kind === "system" && !f.system) return f.setMsg("Pick a system action");
     const spell: Spell = {
       id: f.editingId,
       name,
@@ -50,6 +56,7 @@ export function SpellForm() {
       action: f.kind,
       app_path: f.app.path,
       app_name: f.app.name,
+      system: f.kind === "system" ? f.system : "",
       points: toPairs(f.points),
       enabled: true,
     };
@@ -94,13 +101,21 @@ export function SpellForm() {
           onChange={(e) => view.setName(e.target.value)}
         />
         <div className="seg">
-          {(["shortcut", "app"] as ActionKind[]).map((k) => (
+          {kinds.map((k) => (
             <button key={k} type="button" className={view.kind === k ? "on" : ""} onClick={() => view.setKind(k)}>
-              {k === "shortcut" ? "Shortcut" : "Open app"}
+              {k === "shortcut" ? "Shortcut" : k === "app" ? "Open app" : "System"}
             </button>
           ))}
         </div>
-        {view.kind === "shortcut" ? (
+        {view.kind === "system" ? (
+          <select className="keybtn set" value={view.system} onChange={(e) => view.setSystem(e.target.value)}>
+            {SYSTEM_ACTIONS.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        ) : view.kind === "shortcut" ? (
           <KeyRecorderButton
             id="spell-shortcut"
             value={view.shortcut}

@@ -47,6 +47,9 @@ pub const kCGEventMaskForAllEvents: u64 = (1 << CGEventType::LeftMouseDown as u6
     + (1 << CGEventType::RightMouseDown as u64)
     + (1 << CGEventType::RightMouseUp as u64)
     + (1 << CGEventType::MouseMoved as u64)
+    // PATCHED (wandful): drag events are in the tap mask. macOS reports a move
+    // with a button held as *Dragged, not MouseMoved, so upstream's mask sees
+    // nothing at all while a rune is being drawn — which is the whole gesture.
     + (1 << CGEventType::LeftMouseDragged as u64)
     + (1 << CGEventType::RightMouseDragged as u64)
     + (1 << CGEventType::KeyDown as u64)
@@ -96,6 +99,8 @@ pub unsafe fn convert(
         CGEventType::LeftMouseUp => Some(EventType::ButtonRelease(Button::Left)),
         CGEventType::RightMouseDown => Some(EventType::ButtonPress(Button::Right)),
         CGEventType::RightMouseUp => Some(EventType::ButtonRelease(Button::Right)),
+        // PATCHED (wandful): a drag is a move with a button down; delivering it
+        // as one is what lets a stroke be drawn. See the tap mask above.
         CGEventType::MouseMoved
         | CGEventType::LeftMouseDragged
         | CGEventType::RightMouseDragged

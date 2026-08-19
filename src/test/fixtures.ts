@@ -18,6 +18,7 @@ export const demoSpells: Spell[] = [
     action: "shortcut",
     app_path: "",
     app_name: "",
+    system: "",
     points: [
       [0, 0],
       [1, 1],
@@ -31,6 +32,7 @@ export const demoSpells: Spell[] = [
     action: "app",
     app_path: "/Applications/Spotify.app",
     app_name: "Spotify",
+    system: "",
     points: [
       [0, 0],
       [1, 1],

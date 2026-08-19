@@ -8,6 +8,7 @@
 <p align="center">
   <img alt="Version" src="https://img.shields.io/github/v/release/ostapondo/wandful?style=flat-square&color=8b5cf6&label=version&include_prereleases">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-3a6bff?style=flat-square">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-3a6bff?style=flat-square">
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-ff4f81?style=flat-square">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-12d3a4?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-ffc531?style=flat-square">
@@ -43,10 +44,12 @@ Like BetterTouchTool's or StrokeMouse's gestures, but the shapes are yours and
 it only listens when you ask. If you like the metaphor: a shortcut is a
 *spell*, your set is the *spellbook*, drawing one is a *swish*.
 
-**It is early.** Version 0.0.1, one author, macOS only for now. The spellbook
-format may still change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it
-does. Windows compiles but is untested on real hardware, and Linux is not
-built or tested — both are on [ROADMAP.md](ROADMAP.md).
+**It is early.** Version 0.0.1, one author. The spellbook format may still
+change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it does. macOS is
+where it has had the most use; Windows is built, shipped, held to the same CI
+and has been run on Windows 11, but it has had far less time in front of real
+people — a [bug report](https://github.com/ostapondo/wandful/issues) is the
+fastest way to change that. Linux is not built or tested; see [ROADMAP.md](ROADMAP.md).
 
 ## Install
 
@@ -61,6 +64,11 @@ open it, drag Wandful to Applications. Every file there is built by GitHub
 Actions and carries a provenance attestation you can check with
 `gh attestation verify <file> -R ostapondo/wandful`.
 
+**Windows**: the `.exe` (NSIS) or `.msi` installer from the same page, with the
+same attestation. The installers are not code-signed, so SmartScreen warns on
+the first run — **More info** → **Run anyway**. Nothing else is asked for;
+Windows needs no permission grant for what Wandful does.
+
 Builds are not notarized (that needs a paid Apple account), so the first
 launch is right-click → **Open**, or `brew install --cask --no-quarantine …`.
 Then macOS asks once for Accessibility — see below.
@@ -69,7 +77,10 @@ Then macOS asks once for Accessibility — see below.
 
 **Prerequisites.** [Rust](https://rustup.rs) (stable), Node 20+, and the
 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) — on macOS
-that is Xcode Command Line Tools.
+that is Xcode Command Line Tools; on Windows the MSVC toolchain
+(`rustup default stable-msvc`) with the Visual Studio Build Tools "Desktop
+development with C++" workload, and WebView2, which Windows 11 ships with.
+The GNU toolchain does not link a Tauri app on Windows; use MSVC.
 
 ```sh
 git clone https://github.com/ostapondo/wandful && cd wandful
@@ -77,6 +88,7 @@ npm install
 npm run tauri dev        # run it
 npm run tauri build      # or build a real app
 # macOS:   src-tauri/target/release/bundle/macos/Wandful.app  (+ .dmg)
+# Windows: src-tauri/target/release/bundle/nsis/*.exe          (+ msi/*.msi)
 ```
 
 ### macOS: the Accessibility permission
@@ -99,6 +111,43 @@ npm run build:mac                 # tauri build + re-sign with that identity
 [SECURITY.md](SECURITY.md) says exactly what the permission is used for and
 what the app does not do.
 
+### Windows: what differs
+
+Nothing to grant — the low-level hooks Windows uses need no permission. Three
+things behave differently from macOS:
+
+- **A window running as administrator is out of reach.** Windows will not let
+  an ordinary process type into one that runs with more privilege than it has,
+  and gives no error when it refuses — the keys simply go nowhere. Wandful
+  checks before it casts and says so instead. Start Wandful as administrator
+  to reach those windows.
+- **The overlay covers the primary monitor.** Multi-monitor is on
+  [ROADMAP.md](ROADMAP.md).
+- **The wand never takes focus**, so summoning it does not interrupt what you
+  were typing. The new-spell panel is the exception — it needs the keyboard —
+  and it hands focus back to the app underneath when it closes.
+
+#### Shortcuts Windows keeps for itself
+
+In the spellbook you *build* a shortcut rather than press it — click the keys,
+or press the combination into the panel — so what the OS would have eaten on
+the way never comes up. Casting is the half that has limits, and two
+combinations no application can send:
+
+| Combination | Build | Cast | Why |
+|---|---|---|---|
+| `Ctrl+Alt+Del` | yes | no | The Secure Attention Sequence. The kernel takes it before any hook sees it, and `SendInput` cannot produce it. This is what makes the sign-in screen impossible to spoof. |
+| `Win+L` | yes | no | Windows locks the screen itself, ahead of anything an application sends. |
+
+Both are refused when you build them, with the reason, rather than saved as a
+spell that does nothing.
+
+For what people actually want from that screen, use a **System** spell instead
+of trying to fake the keys: it locks, signs out, switches user, opens Task
+Manager or sleeps by calling the same APIs those menu items do — no elevation,
+no policy change. Task Manager also works as an ordinary **Open app** spell
+pointing at `C:\Windows\System32\Taskmgr.exe`.
+
 ## Using it
 
 1. Summon the wand: **left-click the menu-bar icon** (right-click opens the
@@ -106,13 +155,15 @@ what the app does not do.
 2. Hold **any mouse button** and draw a rune. Release, and the matching spell
    is cast into the app you were in; the wand goes away by itself.
 3. Drew something no spell knows? The wand offers **Make it a spell** right
-   there (or press `N`): name it, press the keys or pick an app, save.
+   there (or press `N`): name it, press the keys — the wand holds them back
+   from the app underneath while it listens — or pick an app, save.
 4. Changed your mind? Click without drawing, press `Esc`, or hit the ✕ in the
    corner.
 5. In the spellbook: draw a rune on the canvas, name it, click **Shortcut** and
-   press the keys — or pick an app to open — then **Save spell**. Click a spell
-   in the list to edit or delete it. The spellbook starts empty; every rune and
-   shortcut is yours. **Strictness** controls how precise the rune must be.
+   build the combination — click the keys, or just press them — or pick an app
+   to open, then **Save spell**. Click a spell in the list to edit or delete
+   it. The spellbook starts empty; every rune and shortcut is yours.
+   **Strictness** controls how precise the rune must be.
 
 <p align="center">
   <img src="docs/spellbook.gif" width="720"
@@ -120,37 +171,19 @@ what the app does not do.
 </p>
 
 Spells are stored in `spellbook.json` in the app config directory
-(`~/Library/Application Support/com.ostap.wandful/`). Back it up, share it,
-edit it by hand — it is plain JSON.
+(`~/Library/Application Support/com.ostap.wandful/` on macOS,
+`%APPDATA%\com.ostap.wandful\` on Windows). Back it up, share it, edit it by
+hand — it is plain JSON.
 
 ## How it works
 
 | | |
 | --- | --- |
-| **Global hook** | `rdev`, vendored and patched, watches the keyboard only: `Esc` while the wand is out, and key chords while the spellbook records a shortcut. Nothing is grabbed while the wand is away |
-| **Overlay** | A full-screen transparent Tauri window, hidden until the wand is summoned. While it is up it takes focus, handles the mouse itself, draws the wand and the trail on a canvas, then hands focus back to the app you came from |
+| **Global hook** | `rdev`, vendored and patched, watches the keyboard only: `Esc` while the wand is out, and the keys while the overlay's new-spell panel records a shortcut. Nothing is grabbed while the wand is away |
+| **Overlay** | A full-screen transparent Tauri window, hidden until the wand is summoned. It handles the mouse itself and draws the wand and the trail on a canvas. On macOS it takes focus while it is up (a window there only gets mouse-moved events while its app is active) and hands it back before the cast; on Windows it never takes focus at all, apart from that panel |
 | **Recognizer** | `$1 Unistroke` in ~170 lines of Rust. Runes are resampled, rotated, scaled and compared by path distance; strictness is a threshold on that score |
-| **Casting** | Shortcuts are typed with `enigo`; apps are opened with `open` / `start` |
+| **Casting** | Shortcuts are typed with `enigo`; apps are opened with `open` (macOS) or `ShellExecute` (Windows) |
 | **Spellbook** | A second Tauri window: React + zustand, one small CSS file |
-
-```
-src/                   frontend (TypeScript, React + zustand)
-  main.tsx             spellbook entry
-  overlay/main.ts      full-screen transparent overlay (shown only while the wand is out)
-  api/                 typed Tauri bridge, shared types, browser mock (`vite` alone previews the UI)
-  state/               zustand stores: spellbook, forge, chord recorder
-  components/          spellbook UI, one file per piece
-  lib/                 pure helpers (+ tests)
-  wand/                pixel wand sprite + magic trail (shared by overlay & spellbook)
-src-tauri/src/
-  lib.rs               windows, tray, hotkey, commands, worker
-  hook.rs              global keyboard hook (Esc, shortcut recording)
-  recognizer.rs        $1 unistroke recognizer
-  spells.rs            spellbook persistence
-  shortcut.rs          "Cmd+Shift+S" → key presses
-src-tauri/vendor/rdev  patched rdev (macOS drag events + no TSM calls off the main thread)
-scripts/               icons, README media, macOS signing helpers
-```
 
 [AGENTS.md](AGENTS.md) is the engineering guide: what each file owns, the
 macOS threading rules the hook has to respect, and the mistakes that already

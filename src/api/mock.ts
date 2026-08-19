@@ -28,6 +28,7 @@ let book: Book = {
       action: "shortcut",
       app_path: "",
       app_name: "",
+      system: "",
       points: circle,
       enabled: true,
     },
@@ -38,6 +39,7 @@ let book: Book = {
       action: "shortcut",
       app_path: "",
       app_name: "",
+      system: "",
       points: line([
         [20, 90],
         [60, 140],
@@ -52,6 +54,7 @@ let book: Book = {
       action: "app",
       app_path: "/Applications/Spotify.app",
       app_name: "Spotify",
+      system: "",
       points: line([
         [20, 140],
         [80, 20],
@@ -115,6 +118,7 @@ export async function mockInvoke(cmd: string, args: any = {}): Promise<any> {
         shortcut: `${P}+Z`,
         action: "shortcut",
         app_name: null,
+        system: null,
         score: 0.91,
       };
     case "cast":
@@ -126,6 +130,7 @@ export async function mockInvoke(cmd: string, args: any = {}): Promise<any> {
         shortcut: `${P}+S`,
         action: "shortcut",
         app_name: null,
+        system: null,
         score: 0.61,
       };
     case "cast_shortcut":

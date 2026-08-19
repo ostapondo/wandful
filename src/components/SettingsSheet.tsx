@@ -101,6 +101,7 @@ function SettingsSheetBody() {
           <KeyRecorderButton
             id="hotkey"
             value={book.hotkey}
+            purpose="hotkey"
             placeholder="Hotkey…"
             onChord={(hotkey) => save({ hotkey })}
           />

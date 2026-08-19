@@ -3,11 +3,13 @@
 // two small DOM pieces — the outcome chip under the stroke and the "New spell"
 // panel that binds a rune nobody recognised.
 import { api, listen } from "../api/tauri";
+import { chordProblem, splitChord } from "../lib/chord";
+import { systemLabel } from "../lib/system";
 import type { ActionKind, CastResult, OverlayStyleEvent, Spell, WandModeEvent } from "../api/types";
 import { hexToRgba } from "../lib/color";
 import { chordLabel, keyTokens, prettyKey } from "../lib/keys";
 import { pickApp } from "../api/dialog";
-import { installRecorder, recorderStore, startRecording, stopRecording } from "../state/recorder";
+import { installRecorder, recorderStore, stopRecording, toggleRecording } from "../state/recorder";
 import { Wand, drawRunePreview, fitCanvas, type Pt } from "../wand/wand";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -103,7 +105,7 @@ window.addEventListener("pointerup", async (e) => {
   try {
     r = await api.cast(pts);
   } catch {
-    r = { matched: false, id: null, name: null, shortcut: null, action: null, app_name: null, score: 0 };
+    r = { matched: false, id: null, name: null, shortcut: null, action: null, app_name: null, system: null, score: 0 };
   }
   if (seq !== strokeSeq) return; // a newer stroke has begun; this reply is history
   wand.end(r);
@@ -147,7 +149,13 @@ window.addEventListener("keydown", (e) => {
 
 const chip = $<HTMLDivElement>("chip");
 
-function actionBadge(r: { action: string | null; shortcut: string | null; app_name: string | null }): string {
+function actionBadge(r: {
+  action: string | null;
+  shortcut: string | null;
+  app_name: string | null;
+  system: string | null;
+}): string {
+  if (r.action === "system") return `<span class="appchip">⚙ ${esc(systemLabel(r.system ?? ""))}</span>`;
   if (r.action === "app") return `<span class="appchip">${esc(r.app_name ?? "app")}</span>`;
   const chord = r.shortcut ?? "";
   if (!chord) return "";
@@ -280,12 +288,22 @@ panel
   .querySelectorAll<HTMLButtonElement>("#kind button")
   .forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind as ActionKind)));
 shortcutBtn.addEventListener("click", () => {
-  if (recorderStore.getState().recordingId === "overlay-shortcut") stopRecording();
-  else
-    startRecording("overlay-shortcut", (chord) => {
-      shortcut = chord;
+  // Recorded, not built: the panel is a strip over a drawn rune and a keycap
+  // grid does not fit on it. What the spellbook's picker refuses is refused
+  // here too, so neither door saves a spell that can never fire — see
+  // `chordProblem`, which is the one place those rules live.
+  toggleRecording("overlay-shortcut", (chord) => {
+    const { mods, key } = splitChord(chord, mac);
+    const problem = chordProblem(mods, key, mac);
+    if (problem) {
+      setMsg(problem);
       renderBind();
-    });
+      return;
+    }
+    shortcut = chord;
+    setMsg("");
+    renderBind();
+  });
 });
 appBtn.addEventListener("click", async () => {
   if (dialogOpen) return;
@@ -322,6 +340,7 @@ async function save() {
     action: kind,
     app_path: app.path,
     app_name: app.name,
+    system: "",
     points: pending,
     enabled: true,
   };
@@ -348,6 +367,7 @@ async function save() {
     shortcut: spell.shortcut,
     action: kind,
     app_name: app.name,
+    system: null,
     score: 1,
   });
   clearTimeout(sheatheTimer);

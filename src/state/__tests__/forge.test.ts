@@ -9,6 +9,7 @@ const spell: Spell = {
   action: "shortcut",
   app_path: "",
   app_name: "",
+  system: "",
   points: [
     [0, 0],
     [10, 10],
@@ -30,6 +31,18 @@ describe("forge store", () => {
     expect(get().editingId).toBe("");
     expect(get().command).toMatchObject({ kind: "clear" });
     expect(get().command.seq).toBeGreaterThan(seq);
+  });
+
+  it("loads a system spell as a system spell", () => {
+    get().startEdit({ ...spell, action: "system", shortcut: "", system: "taskmgr" }, []);
+    expect(get()).toMatchObject({ kind: "system", system: "taskmgr" });
+  });
+
+  /** A spellbook written before system spells existed has `system: ""`, and an
+   *  empty select is not a thing anyone can save. */
+  it("falls back to a real action when a spell names none", () => {
+    get().startEdit({ ...spell, action: "system", system: "" }, []);
+    expect(get().system).toBe("lock");
   });
 
   it("loads a spell for editing and asks the canvas to replay it", () => {

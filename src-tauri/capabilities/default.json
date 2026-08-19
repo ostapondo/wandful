@@ -11,7 +11,6 @@
     "core:window:allow-show",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "core:window:allow-internal-toggle-maximize",
     "core:event:default",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",

@@ -1,4 +1,5 @@
 // Key-chord strings ("Cmd+Shift+M") ↔ tokens ↔ pretty glyphs.
+import { buildChord, keyFromEvent, modsFromEvent } from "./chord";
 
 export function keyTokens(chord: string): string[] {
   return chord.split("+").filter(Boolean);
@@ -41,21 +42,9 @@ export function chordLabel(chord: string, mac: boolean): string {
     .join(mac ? "" : "+");
 }
 
-/** Turn a DOM keydown into a chord string, or null if only a modifier was pressed. */
+/** Turn a DOM keydown into a chord string, or null if only a modifier was
+ *  pressed. One set of rules for which token a key is, shared with the picker. */
 export function chordFromKeyEvent(e: KeyboardEvent): string | null {
-  if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return null;
-  const mods: string[] = [];
-  if (e.metaKey) mods.push("Cmd");
-  if (e.ctrlKey) mods.push("Ctrl");
-  if (e.altKey) mods.push("Alt");
-  if (e.shiftKey) mods.push("Shift");
-  let key = e.key;
-  if (key === " ") key = "Space";
-  else if (key.startsWith("Arrow")) key = key.slice(5);
-  else if (key.length === 1) {
-    if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
-    else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5);
-    else key = key.toUpperCase();
-  }
-  return [...mods, key].join("+");
+  const key = keyFromEvent(e);
+  return key === null ? null : buildChord(modsFromEvent(e), key);
 }

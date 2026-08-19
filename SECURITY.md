@@ -10,9 +10,10 @@ page is what you can check instead of trusting it, and where the checks stop.
 | | |
 | --- | --- |
 | **Accessibility (macOS)** | Watch global mouse and keyboard events, so a right-button drag can become a gesture; and synthesize key presses, so a spell can cast a shortcut. Granted by you, revocable in System Settings → Privacy & Security. Without it the app runs listen-only |
-| **Windows** | Low-level mouse and keyboard hooks need no permission. Key synthesis cannot reach a window running as Administrator unless Wandful does too |
-| **Disk** | The spellbook, `spellbook.json`, in the app config directory; a log file, `~/Library/Logs/Wandful/wandful.log` on macOS or `%HOME%\.wandful\wandful.log` on Windows when `HOME` is set (otherwise the log goes to stderr only); nothing else |
-| **Processes** | A spell can open an app or path you chose, via `open` (macOS) or `start` (Windows). Only paths you saved in the spellbook |
+| **Windows** | A low-level keyboard hook needs no permission (there is no mouse hook: the overlay reads the mouse itself). Key synthesis cannot reach a window whose process runs at a higher integrity level — anything started as Administrator — unless Wandful was started that way too; a cast aimed at one says so instead of failing quietly |
+| **Disk** | The spellbook, `spellbook.json`, in the app config directory; a log file, `~/Library/Logs/Wandful/wandful.log` on macOS or `%LOCALAPPDATA%\Wandful\logs\wandful.log` on Windows; nothing else |
+| **Processes** | A spell can open an app or path you chose, via `open` (macOS) or `ShellExecute` (Windows). Only paths you saved in the spellbook |
+| **The session (Windows)** | A **System** spell calls one of five APIs behind the `Ctrl+Alt+Del` menu: lock the screen, sign out (`ExitWindowsEx`, which closes your apps), switch user, Task Manager, sleep. Only the five, only the one the spell names, and only when its rune is drawn. None of them needs elevation |
 | **Network** | None. Wandful makes no outbound connections and listens on no port |
 
 ## What it does not do
@@ -23,9 +24,11 @@ is one binary in one bundle. Uninstalling is quitting it and dragging it to the
 trash; the config directory and the log directory are the only things it
 leaves behind.
 
-The Tauri capability file, [`src-tauri/capabilities/default.json`](src-tauri/capabilities/default.json),
-lists every host API the two web views are allowed to call. Anything not on
-that list is unreachable from the frontend. It is short and worth reading.
+The Tauri capability files, [`src-tauri/capabilities/default.json`](src-tauri/capabilities/default.json)
+and [`main.json`](src-tauri/capabilities/main.json), list every host API the
+two web views are allowed to call — the second one only for the spellbook
+window, which is the only one with a title bar to drive. Anything not on those
+lists is unreachable from the frontend. They are short and worth reading.
 
 `cargo tree` shows what the binary is built from. The global hook is a vendored
 copy of [`rdev`](https://github.com/Narsil/rdev) with a few patches marked
@@ -33,8 +36,9 @@ copy of [`rdev`](https://github.com/Narsil/rdev) with a few patches marked
 serde. There is no HTTP client in the dependency graph.
 
 **The checkable half of this page is meant to stay checkable.** A pull request
-that adds a network dependency, a permission, a port, or a new place files are
-written also has to change this page, in the same commit. Review looks for
+that adds a network dependency, a permission, a port, a new place files are
+written, or a new thing a spell can do to the machine also has to change this
+page, in the same commit. Review looks for
 that.
 
 ## Where a build came from

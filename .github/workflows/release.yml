@@ -68,8 +68,10 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
-          # Windows is on the roadmap: the code compiles there, but nobody has
-          # run it on real hardware yet, so it is not shipped.
+          # MSVC, not GNU: WebView2 and wry are only supported there.
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     env:
       # `secrets` cannot be read in a step's `if`; this can.

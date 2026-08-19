@@ -30,10 +30,9 @@ export const useApp = create<AppState>((set) => ({
   book: { spells: [], threshold: 0.8, hotkey: "CmdOrCtrl+Shift+M", overlay_color: "#050506", overlay_opacity: 0.9 },
   wandOn: false,
   needsAccessibility: false,
-  status: {
-    text: "Click the menu-bar icon (or press the hotkey), then hold a mouse button and draw a rune.",
-    ok: false,
-  },
+  // Written once the platform is known (it names the tray icon); until then
+  // the line is empty rather than wrong.
+  status: { text: "", ok: false },
   flashId: null,
   lastCast: null,
   settingsOpen: new URLSearchParams(location.search).get("open") === "settings",
@@ -51,11 +50,16 @@ export const useApp = create<AppState>((set) => ({
 export const selectIsMac = (s: AppState) => s.platform.os === "macos";
 export const isMac = () => selectIsMac(useApp.getState());
 
+/** What the tray icon is called where the user is: macOS has a menu bar, Windows a tray. */
+export const trayIconName = () => (isMac() ? "menu-bar icon" : "tray icon");
+const summonHint = () => `Click the ${trayIconName()} (or press the hotkey), then hold a mouse button and draw a rune.`;
+
 /** Load initial state and subscribe to backend events. Call once at startup. */
 export async function bootstrap() {
   const { setState } = useApp;
   const platform = await api.getPlatform();
-  setState({ platform });
+  // The opening line names the tray icon, so it waits for the platform.
+  setState({ platform, status: { text: summonHint(), ok: false } });
   document.body.classList.toggle("win", platform.os !== "macos");
   setState({ book: await api.getBook(), wandOn: await api.getWand() });
   if (platform.os === "macos" && !(await api.accessibilityOk())) setState({ needsAccessibility: true });
@@ -67,7 +71,7 @@ export async function bootstrap() {
       .setStatus(
         on
           ? "Wand summoned — hold a mouse button anywhere and draw a rune."
-          : "Wand sheathed. Click the menu-bar icon or press the hotkey to summon it.",
+          : `Wand sheathed. Click the ${trayIconName()} or press the hotkey to summon it.`,
       );
   });
   // Spells can also be saved from the overlay (a rune nobody matched → "Make it a spell").
@@ -76,7 +80,18 @@ export async function bootstrap() {
     setState({ lastCast: r });
     if (r.matched && r.id) useApp.getState().flashSpell(r.id);
   });
-  listen<string>("wand:hook-error", () => {
+  listen<string>("wand:hook-error", (message) => {
+    // On macOS the one thing that goes wrong with the hook is the missing
+    // grant, and the banner explains it better than a status line can.
+    // Elsewhere the backend sends a sentence worth showing as it is.
     if (isMac()) setState({ needsAccessibility: true });
+    else if (message) useApp.getState().setStatus(message);
+  });
+  // A cast that could not land is a different thing from a hook that will not
+  // install: an elevated window, or a system action the OS refused. It has
+  // nothing to do with Accessibility, and saying so on macOS sent people to
+  // System Settings over a spellbook synced from a Windows machine.
+  listen<string>("wand:cast-error", (message) => {
+    if (message) useApp.getState().setStatus(message);
   });
 }

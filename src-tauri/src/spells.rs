@@ -21,6 +21,10 @@ pub struct Spell {
     /// Display name of that application
     #[serde(default)]
     pub app_name: String,
+    /// Which system action to run when `action == "system"`:
+    /// "lock" | "signout" | "switchuser" | "taskmgr" | "sleep"
+    #[serde(default)]
+    pub system: String,
     pub points: Vec<Point>,
     #[serde(default = "default_true")]
     pub enabled: bool,

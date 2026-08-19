@@ -3,7 +3,6 @@ import type { Spell } from "../api/types";
 import { fitPoints } from "../lib/geometry";
 import { bootstrap } from "../state/app";
 import { useForge } from "../state/forge";
-import { installRecorder } from "../state/recorder";
 import { Forge } from "./Forge";
 import { PermissionBanner } from "./PermissionBanner";
 import { SettingsSheet } from "./SettingsSheet";
@@ -19,7 +18,9 @@ export function App() {
   const resetForge = useForge((s) => s.resetForge);
 
   useEffect(() => {
-    installRecorder();
+    // No recorder here: the spellbook builds chords in the picker. The one
+    // recorder left belongs to the overlay's new-spell panel, and is installed
+    // there — see src/overlay/main.ts.
     bootstrap();
     const noMenu = (e: Event) => e.preventDefault();
     window.addEventListener("contextmenu", noMenu);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { appIcon } from "../api/tauri";
+import { systemLabel } from "../lib/system";
 import { keyTokens, prettyKey } from "../lib/keys";
 import { selectIsMac, useApp } from "../state/app";
 
@@ -34,7 +35,9 @@ export function ActionLabel(s: {
   shortcut?: string | null;
   app_name?: string | null;
   app_path?: string | null;
+  system?: string | null;
 }) {
+  if (s.action === "system") return <span className="appchip">⚙ {systemLabel(s.system ?? "")}</span>;
   if (s.action === "app")
     return (
       <span className="appchip">

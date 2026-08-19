@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "What the custom title bar needs, and only the window that has one. The overlay is a transparent no-activate sheet with no title bar; it has no business minimizing or maximizing itself.",
+  "windows": ["main"],
+  "permissions": [
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized"
+  ]
+}
