@@ -185,27 +185,6 @@ hand — it is plain JSON.
 | **Casting** | Shortcuts are typed with `enigo`; apps are opened with `open` (macOS) or `ShellExecute` (Windows) |
 | **Spellbook** | A second Tauri window: React + zustand, one small CSS file |
 
-```
-src/                   frontend (TypeScript, React + zustand)
-  main.tsx             spellbook entry
-  overlay/main.ts      full-screen transparent overlay (shown only while the wand is out)
-  api/                 typed Tauri bridge, shared types, browser mock (`vite` alone previews the UI)
-  state/               zustand stores: spellbook, forge, chord recorder
-  components/          spellbook UI, one file per piece
-  lib/                 pure helpers (+ tests)
-  wand/                pixel wand sprite + magic trail (shared by overlay & spellbook)
-src-tauri/src/
-  lib.rs               windows, tray, hotkey, commands, worker
-  hook.rs              global keyboard hook (Esc, shortcut recording)
-  recognizer.rs        $1 unistroke recognizer
-  spells.rs            spellbook persistence
-  shortcut.rs          "Cmd+Shift+S" → key presses
-  win.rs               the Win32 side: focus, ShellExecute, shell icons, system actions
-src-tauri/vendor/rdev  patched rdev (macOS drag delivery + no TSM calls off the tap
-                       thread; Windows keyboard-only hooks + a real message pump)
-scripts/               icons, README media, macOS signing helpers
-```
-
 [AGENTS.md](AGENTS.md) is the engineering guide: what each file owns, the
 macOS threading rules the hook has to respect, and the mistakes that already
 cost an hour.
