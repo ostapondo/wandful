@@ -331,9 +331,15 @@ pub use crate::macos::grab as _grab;
 #[cfg(feature = "unstable_grab")]
 #[cfg(target_os = "windows")]
 pub use crate::windows::grab as _grab;
-// PATCHED (wandful): keyboard-only variant, see windows/grab.rs
+// PATCHED (wandful): keyboard-only variants, see windows/grab.rs and
+// windows/listen.rs. `grab_keys` carries the same feature gate as `grab`
+// itself — `windows::mod` only compiles the grab module under it, so without
+// this the crate stops building in its own default configuration.
+#[cfg(feature = "unstable_grab")]
 #[cfg(target_os = "windows")]
 pub use crate::windows::grab_keys;
+#[cfg(target_os = "windows")]
+pub use crate::windows::listen_keys;
 #[cfg(any(feature = "unstable_grab"))]
 /// Grabbing global events. In the callback, returning None ignores the event
 /// and returning the event let's it pass. There is no modification of the event

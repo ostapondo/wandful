@@ -1,23 +1,44 @@
 import { useEffect, useRef, useState } from "react";
-import { KEY_GROUPS, MODIFIERS, buildChord, chordProblem, splitChord } from "../lib/chord";
+import { createPortal } from "react-dom";
+import {
+  KEY_GROUPS,
+  MODIFIERS,
+  buildChord,
+  chordProblem,
+  keyFromEvent,
+  modsFromEvent,
+  splitChord,
+  type ChordPurpose,
+} from "../lib/chord";
 import { prettyKey } from "../lib/keys";
 import { selectIsMac, useApp } from "../state/app";
 
-type Props = { value: string; onSave: (chord: string) => void; onClose: () => void };
+type Props = {
+  value: string;
+  purpose?: ChordPurpose;
+  onSave: (chord: string) => void;
+  onClose: () => void;
+};
 
 /** Build a chord a key at a time. Nothing here listens globally: the keys are
  *  either clicked, or typed into this panel while it has focus, so a chord the
  *  OS would swallow can still be entered. */
-export function ChordPicker({ value, onSave, onClose }: Props) {
+export function ChordPicker({ value, purpose = "cast", onSave, onClose }: Props) {
   const mac = useApp(selectIsMac);
-  const initial = splitChord(value);
+  const initial = splitChord(value, mac);
   const [mods, setMods] = useState<string[]>(initial.mods);
   const [key, setKey] = useState(initial.key);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => ref.current?.focus(), []);
+  useEffect(() => {
+    // Whoever opened the picker gets the focus back when it closes; otherwise
+    // it lands on <body> and the next Tab starts from the top of the window.
+    const opener = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
 
-  const problem = chordProblem(mods, key, mac);
+  const problem = chordProblem(mods, key, mac, purpose);
   const chord = buildChord(mods, key);
 
   function toggleMod(m: string) {
@@ -26,34 +47,33 @@ export function ChordPicker({ value, onSave, onClose }: Props) {
 
   // Typing works too, for the many chords the OS does not mind.
   function onKeyDown(e: React.KeyboardEvent) {
+    // Escape closes. It is still available as a chord key from its keycap —
+    // one of the two has to win, and leaving the dialog has to stay possible.
     if (e.key === "Escape") return onClose();
+    // Tab still moves focus and Enter/Space still press the button they are
+    // on: swallowing those left Save unreachable without a mouse.
+    if (e.key === "Tab") return;
+    if ((e.target as HTMLElement | null)?.closest("button")) return;
     e.preventDefault();
     e.stopPropagation();
-    if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return;
-    const next: string[] = [];
-    if (e.metaKey) next.push("Cmd");
-    if (e.ctrlKey) next.push("Ctrl");
-    if (e.altKey) next.push("Alt");
-    if (e.shiftKey) next.push("Shift");
-    let k = e.key;
-    if (k === " ") k = "Space";
-    else if (k.startsWith("Arrow")) k = k.slice(5);
-    else if (k.length === 1) {
-      if (/^Key[A-Z]$/.test(e.code)) k = e.code.slice(3);
-      else if (/^Digit[0-9]$/.test(e.code)) k = e.code.slice(5);
-      else k = k.toUpperCase();
-    }
-    setMods(next);
+    const k = keyFromEvent(e);
+    if (k === null) return;
+    // A bare key finishes a combination whose modifiers were clicked, rather
+    // than throwing them away: clicking Ctrl and then pressing S has to mean
+    // Ctrl+S, not a spell bound to the letter S.
+    const typed = modsFromEvent(e);
+    if (typed.length) setMods(typed);
     setKey(k);
   }
 
-  return (
+  return createPortal(
     <div className="picker-veil" onPointerDown={onClose}>
       <div
         className="picker"
         ref={ref}
         tabIndex={-1}
         role="dialog"
+        aria-modal="true"
         aria-label="Build a shortcut"
         onKeyDown={onKeyDown}
         onPointerDown={(e) => e.stopPropagation()}
@@ -112,7 +132,9 @@ export function ChordPicker({ value, onSave, onClose }: Props) {
         </div>
 
         <div className="picker-foot">
-          <span className={"msg" + (problem ? "" : " ok")}>{problem ?? (chord ? `Will cast ${chord}` : "")}</span>
+          <span className={"msg" + (problem ? "" : " ok")}>
+            {problem ?? (chord ? (purpose === "hotkey" ? `Summons with ${chord}` : `Will cast ${chord}`) : "")}
+          </span>
           <div className="picker-actions">
             <button type="button" className="ghost" onClick={onClose}>
               Cancel
@@ -123,6 +145,7 @@ export function ChordPicker({ value, onSave, onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

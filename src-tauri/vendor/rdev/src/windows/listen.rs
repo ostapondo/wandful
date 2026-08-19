@@ -47,10 +47,31 @@ pub fn listen<T>(callback: T) -> Result<(), ListenError>
 where
     T: FnMut(Event) + 'static,
 {
+    listen_inner(callback, true)
+}
+
+/// PATCHED (wandful): keyboard only, for the same reason as `grab_keys` —
+/// the mouse hook fires on every pointer move, and a low-level hook that
+/// misses `LowLevelHooksTimeout` is silently dropped from the chain. This is
+/// the fallback path when `grab_keys` cannot install, so it must not
+/// reintroduce the cost the grab side just removed.
+pub fn listen_keys<T>(callback: T) -> Result<(), ListenError>
+where
+    T: FnMut(Event) + 'static,
+{
+    listen_inner(callback, false)
+}
+
+fn listen_inner<T>(callback: T, with_mouse: bool) -> Result<(), ListenError>
+where
+    T: FnMut(Event) + 'static,
+{
     unsafe {
         GLOBAL_CALLBACK = Some(Box::new(callback));
         set_key_hook(raw_callback)?;
-        set_mouse_hook(raw_callback)?;
+        if with_mouse {
+            set_mouse_hook(raw_callback)?;
+        }
 
         // PATCHED (wandful): pump messages forever, not once. A WH_KEYBOARD_LL
         // hook only lives while the thread that installed it keeps servicing a

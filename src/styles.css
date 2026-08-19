@@ -117,8 +117,11 @@ body.win .titlebar { padding-left: 16px; padding-right: 0; }
 .chip .plus { font-style: normal; color: var(--muted); margin: 0 4px; }
 .chip-x { width: 16px; height: 16px; margin-left: 2px; padding: 0; border: 0; border-radius: 50%; background: transparent;
   color: var(--muted); font-size: 13px; line-height: 1; opacity: 0; transition: opacity .12s ease, background .12s ease; }
-.chip:hover .chip-x { opacity: 1; }
+.chip:hover .chip-x, .chip-x:focus-visible { opacity: 1; }
 .chip-x:hover { background: rgba(255,255,255,.12); color: var(--text); }
+/* Tabbing through the chips has to show where you are: the cross is invisible
+   until hover, and hovering is not something a keyboard does. */
+.chip-x:focus-visible { outline: 2px solid rgba(167,139,250,.8); outline-offset: 1px; }
 .picker-mods { display: flex; gap: 6px; margin-bottom: 12px; }
 .picker-group { margin-bottom: 10px; }
 .picker-group-label { display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }

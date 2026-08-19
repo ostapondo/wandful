@@ -22,34 +22,13 @@ may change the spellbook format — the changelog says so when they do.
   macOS window already overlays its traffic lights.
 
 ### Changed
-- Shortcuts are **built, not captured**. Clicking the shortcut field opens a
-  panel: click the keys, or press the combination, and each one appears as a
-  chip you can remove. Nothing listens globally, so combinations the OS acts on
-  or hides from hooks can be entered like any other — and one that could never
-  be delivered is refused with the reason instead of saved as a dead spell.
-
-### Fixed
-- Windows: a shortcut whose key was punctuation (`` ` ``, `-`, `/`, …) was
-  typed as text instead of pressed, so its modifiers were dropped and the
-  shortcut never fired. Those keys are sent as virtual keys now.
-- Windows: a **System** spell could not be saved — the backend asked every
-  spell that was not an app for a shortcut, and a system spell has none.
-- Windows: the keyboard hook never received a single key. `rdev`'s Windows
-  `grab` pumped one message instead of looping, so the thread that owned the
-  hook ended and Windows unhooked it — silently, because only the error arm was
-  reported. It also installed a mouse hook that fires on every pointer move,
-  which is enough to have the whole chain dropped for overrunning
-  `LowLevelHooksTimeout`. Both are patched in `vendor/rdev`.
-- Recording a shortcut no longer goes quietly deaf. The keyboard is released
-  after 30 seconds rather than 8, and when that happens the button stops
-  saying "Press keys…" instead of sitting over a keyboard nobody is reading.
-- Windows: pressing `Ctrl+Alt+Del` while recording a shortcut no longer leaves
-  `Ctrl` and `Alt` stuck on every chord recorded afterwards. The kernel takes
-  the sequence and the two releases happen on the secure desktop, where no hook
-  can see them. Each recording now seeds its modifier state from the OS before
-  it starts listening.
-
-### Changed
+- Shortcuts in the spellbook are **built, not captured**. Clicking the shortcut
+  field opens a panel: click the keys, or press the combination, and each one
+  appears as a chip you can remove. Nothing listens globally there, so
+  combinations the OS acts on or hides from hooks can be entered like any
+  other. The overlay's new-spell panel still records — it is a strip over a
+  drawn rune with no room for a keyboard — but both refuse a combination that
+  could never be delivered, with the reason, instead of saving a dead spell.
 - Windows: the app underneath gets focus back after the overlay's new-spell
   panel closes, so the next cast lands where it was aimed rather than in
   Wandful.
@@ -59,6 +38,67 @@ may change the spellbook format — the changelog says so when they do.
 - Windows: the status line says "tray icon" rather than "menu-bar icon".
 - Windows: the log moved to `%LOCALAPPDATA%\Wandful\logs\wandful.log`, which
   exists whether or not a shell set `HOME`.
+- The log no longer records which keys you pressed at the default level. The
+  chord and the individual key events moved to `debug` and `trace`; what lands
+  on disk is what [SECURITY.md](SECURITY.md) says lands on disk.
+
+### Fixed
+- Windows: a shortcut whose key was punctuation (`` ` ``, `-`, `/`, …) was
+  typed as text instead of pressed, so its modifiers were dropped and the
+  shortcut never fired. Those keys are sent as virtual keys now, and the panel
+  reads the key you struck rather than the glyph it produced — `Ctrl+Shift+;`
+  is `Ctrl+Shift+;` and not `Ctrl+Shift+:`, which nothing can send.
+- Windows: a **System** spell could not be saved — the backend asked every
+  spell that was not an app for a shortcut, and a system spell has none.
+- Windows: **Switch user** never worked. A tab character had eaten its
+  backslash inside the path (`…\System32<tab>sdiscon.exe`), where no compiler
+  or linter can see one. System paths come from `%SystemRoot%` now, so a
+  Windows installed anywhere but `C:` works too.
+- Windows: **Sleep** silently did nothing. `SetSuspendState` needs a privilege
+  that every account has and nobody has switched on; it is enabled first now,
+  and a refusal says what Windows said.
+- Windows: a cast aimed at an elevated window is caught by comparing integrity
+  levels. The old probe asked whether the process could be opened, which is
+  allowed across that boundary by design — so the check passed and the keys
+  still went nowhere, quietly, which is the thing it was written to prevent.
+- Windows: the keyboard hook never received a single key. `rdev`'s Windows
+  `grab` pumped one message instead of looping, so the thread that owned the
+  hook ended and Windows unhooked it — silently, because only the error arm was
+  reported. It also installed a mouse hook that fires on every pointer move,
+  which is enough to have the whole chain dropped for overrunning
+  `LowLevelHooksTimeout`. Both are patched in `vendor/rdev`, in the fallback
+  path as well as the main one.
+- Recording a shortcut no longer goes quietly deaf. The keyboard is released
+  after 30 seconds rather than 8, and when that happens the button stops
+  saying "Press keys…" instead of sitting over a keyboard nobody is reading.
+- Windows: pressing `Ctrl+Alt+Del` while recording a shortcut no longer leaves
+  `Ctrl` and `Alt` stuck on every chord recorded afterwards. The kernel takes
+  the sequence and the two releases happen on the secure desktop, where no hook
+  can see them. Each recording now seeds its modifier state from the OS before
+  it starts listening.
+- The summon hotkey opens in the panel with all of its keys. The one the app
+  ships with is spelled `CmdOrCtrl+Shift+M`, and reading it as "the first token
+  that is not a modifier" made `CmdOrCtrl` the key and dropped the `M`.
+- A combination the backend cannot press — `AltGr`, `F13`, a media key — is
+  refused where you build it, rather than saved and found out days later when
+  the rune matches and nothing happens.
+- Clicking modifier keys and then pressing the last one no longer throws the
+  clicked ones away: `Ctrl` clicked plus `S` pressed is `Ctrl+S`.
+- The shortcut panel can be used from the keyboard: `Tab` reaches the keys and
+  the buttons, and `Enter` presses the one it is on. Everything but `Escape`
+  used to be swallowed, which left **Save** reachable only with a mouse.
+- The summon hotkey can no longer be set to a bare key, which would have taken
+  that key away from every application on the machine.
+- macOS: a system action from a spellbook written on Windows no longer claims
+  the Accessibility permission is missing. Casts that fail have their own
+  channel now, separate from a hook that will not install.
+- A cast is no longer refused for `Ctrl+Win+L`; only `Win+L` itself is one
+  Windows keeps.
+- A modifier the spellbook does not recognise is an error instead of being
+  dropped: `Ctrl+Foo+K` used to cast `Ctrl+K` into whatever was in front.
+- Windows: the shell is asked for icons and for opening files off the main
+  thread, so a spell pointing at a disconnected network share cannot freeze
+  both windows and the tray while the redirector times out.
 
 ## [0.0.1] — 2026-08-18
 

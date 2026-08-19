@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { api } from "../api/tauri";
-import { SYSTEM_ACTIONS, type ActionKind, type Spell } from "../api/types";
+import type { ActionKind, Spell } from "../api/types";
+import { SYSTEM_ACTIONS } from "../lib/system";
 import { toPairs } from "../lib/geometry";
 import { pickApp } from "../api/dialog";
 import { isMac, selectIsMac, useApp } from "../state/app";

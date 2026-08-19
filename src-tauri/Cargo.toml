@@ -21,7 +21,9 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# vendored + patched: maps *MouseDragged events to MouseMove on macOS (upstream drops them)
+# vendored + patched: see AGENTS.md ("The vendored rdev") for the list — macOS
+# drag delivery and TSM-free key events, Windows keyboard-only hooks and a
+# message pump that does not end after one message
 rdev = { path = "vendor/rdev", features = ["unstable_grab"] }
 enigo = "0.6"
 uuid = { version = "1", features = ["v4"] }
@@ -40,6 +42,8 @@ windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Security",
+    # not dead weight: SHGetFileInfoW is gated behind it (it takes a
+    # FILE_FLAGS_AND_ATTRIBUTES), and the icons come from that call
     "Win32_Storage_FileSystem",
     "Win32_System_Com",
     "Win32_System_Power",

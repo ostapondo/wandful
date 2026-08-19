@@ -325,7 +325,7 @@ fn perform(app: &AppHandle, r: &CastResult) {
         if let Some(id) = r.system.clone() {
             if let Err(e) = run_system_action(&id) {
                 log::error!("system action {id} failed: {e}");
-                let _ = app.emit("wand:hook-error", e);
+                let _ = app.emit("wand:cast-error", e);
             }
         }
     } else if let Some(sc) = r.shortcut.clone() {
@@ -336,7 +336,7 @@ fn perform(app: &AppHandle, r: &CastResult) {
         if win::foreground_unreachable() {
             log::warn!("cast dropped: the window in front runs elevated");
             let _ = app.emit(
-                "wand:hook-error",
+                "wand:cast-error",
                 concat!(
                     "That window runs as administrator, so Wandful cannot type ",
                     "into it. Start Wandful as administrator too, or press the ",
@@ -369,14 +369,20 @@ fn launch_app(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+/// `async`, and it matters: a sync command runs on the event-loop thread, and
+/// `ShellExecuteW` on a path that lives on a disconnected share blocks until
+/// the redirector gives up — with both windows and the tray frozen behind it.
+#[tauri::command(async)]
 fn launch(path: String) -> Result<(), String> {
     launch_app(&path)
 }
 
 /// Icon of an application as a `data:image/png;base64,...` URL (cached).
-#[tauri::command]
-fn app_icon(state: State<AppState>, path: String) -> Option<String> {
+///
+/// `async` for the same reason as [`launch`]: the shell is asked about a path,
+/// and a path can be on a share that is no longer there.
+#[tauri::command(async)]
+fn app_icon(state: State<'_, AppState>, path: String) -> Option<String> {
     if let Some(hit) = state.icon_cache.lock().unwrap().get(&path) {
         return hit.clone();
     }
@@ -484,30 +490,38 @@ fn accessibility_trusted(_prompt: bool) -> bool {
 }
 
 /// How long the keyboard may stay swallowed while nobody presses anything.
-/// Long enough to decide on a chord, short enough that a wedged recording is
-/// an annoyance rather than a dead keyboard.
+/// Long enough to think about which chord you want; Escape ends it sooner,
+/// and the hook releases the keyboard the moment one chord has been reported.
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[tauri::command]
 fn set_key_capture(app: AppHandle, state: State<AppState>, on: bool) {
-    if on {
-        state.hook.begin_capture();
-    } else {
+    // Bump first, whichever way this goes: any timer still asleep belongs to a
+    // capture that is over, and must not end the next one. Bumping before the
+    // capture starts also closes the window where an old timer could cancel a
+    // capture that had already begun.
+    let generation = state.hook.capture_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    log::debug!("key capture {}", if on { "on" } else { "off" });
+    if !on {
         state.hook.capture_keys.store(false, Ordering::SeqCst);
+        return;
     }
-    log::info!("key capture {}", if on { "on" } else { "off" });
-    if on {
-        // Safety net: never swallow the keyboard indefinitely. The generation
-        // guard keeps an old timer from ending a newer capture.
-        let gen = state.hook.capture_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    state.hook.begin_capture();
+    {
+        // Safety net: never swallow the keyboard indefinitely.
         let hook = state.hook.clone();
         std::thread::spawn(move || {
             std::thread::sleep(CAPTURE_TIMEOUT);
-            if hook.capture_gen.load(Ordering::SeqCst) == gen {
-                hook.capture_keys.store(false, Ordering::SeqCst);
+            if hook.capture_gen.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            // `swap` and not `store`: the hook releases the keyboard itself
+            // after one chord, and a recording that already ended needs no
+            // announcement.
+            if hook.capture_keys.swap(false, Ordering::SeqCst) {
                 // Tell the button, or it goes on saying "Press keys…" over a
                 // keyboard that is no longer being listened to.
-                log::info!("key capture timed out");
+                log::debug!("key capture timed out");
                 let _ = app.emit("wand:capture-ended", ());
             }
         });
@@ -731,7 +745,9 @@ fn spawn_worker(app: AppHandle, rx: mpsc::Receiver<Msg>) {
                         let _ = app.emit("wand:hook-error", e);
                     }
                     Msg::KeyChord { mods, key } => {
-                        log::info!("chord captured: {mods:?}+{key}");
+                        // `debug!`: this is what the user typed, and the log
+                        // file is on disk. SECURITY.md says what lands there.
+                        log::debug!("chord captured: {mods:?}+{key}");
                         // Both windows may be recording a shortcut: the spellbook
                         // form, or the overlay's new-spell panel. Each ignores
                         // chords while it is not listening.

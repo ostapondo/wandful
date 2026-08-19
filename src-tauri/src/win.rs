@@ -4,14 +4,24 @@
 //! icon out of the shell.
 
 use std::ffi::c_void;
+use std::sync::Mutex;
 use windows::core::{HSTRING, PCWSTR};
-use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND};
+use windows::Win32::Foundation::{
+    CloseHandle, GetLastError, ERROR_NOT_ALL_ASSIGNED, HANDLE, HWND, LUID,
+};
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
     BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
 };
-use windows::Win32::Security::{TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+use windows::Win32::Security::{
+    AdjustTokenPrivileges, GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation,
+    LookupPrivilegeValueW, TokenIntegrityLevel, LUID_AND_ATTRIBUTES, SE_PRIVILEGE_ENABLED,
+    SE_SHUTDOWN_NAME, TOKEN_ADJUST_PRIVILEGES, TOKEN_MANDATORY_LABEL, TOKEN_PRIVILEGES,
+    TOKEN_QUERY,
+};
+use windows::Win32::System::Com::{
+    CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+};
 use windows::Win32::System::Threading::{
     GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -25,17 +35,59 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SetForegroundWindow, HICON, ICONINFO, SW_SHOWNORMAL,
 };
 
+/// An initialised COM apartment for as long as the value is alive.
+///
 /// Shell calls (`ShellExecuteW`, `SHGetImageList`) may hand off to in-process
-/// shell extensions, which expect an initialised apartment. Both run off the
-/// main thread here, so each one initialises its own; a thread that is already
-/// initialised just gets an error we ignore.
-fn com_init() {
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+/// shell extensions, which expect one. Each call site initialises its own,
+/// because they run on whatever thread Tauri or the cast gave them, and
+/// uninitialises on the way out — a thread that exits still holding an
+/// apartment leaves any shell extension DLL loaded on its behalf behind.
+///
+/// `COINIT_DISABLE_OLE1DDE` is what MSDN asks for around `ShellExecute`:
+/// without it, a file association that still carries a DDE command starts a
+/// DDE conversation, and an STA thread that does not pump messages (neither
+/// of ours does) waits out the whole DDE timeout before failing.
+struct Com(bool);
+
+impl Com {
+    fn init() -> Com {
+        // S_FALSE (already initialised on this thread) still counts, and still
+        // has to be balanced; only a hard failure must not be.
+        let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
+        Com(hr.is_ok())
     }
 }
 
+impl Drop for Com {
+    fn drop(&mut self) {
+        if self.0 {
+            unsafe { CoUninitialize() };
+        }
+    }
+}
+
+/// A path inside the system directory, from `%SystemRoot%` rather than a
+/// literal `C:\Windows` — Windows is not always on the C: volume.
+fn system32(exe: &str) -> String {
+    let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+    format!(r"{root}\System32\{exe}")
+}
+
 // ---------- focus ----------
+
+/// Which process the last handed-out handle belonged to.
+///
+/// A window handle is only unique while its window lives: Windows reuses the
+/// value once the window is gone. Remembering the owner lets [`activate_window`]
+/// tell "the app I meant" from "whatever inherited its handle", which is the
+/// difference between handing focus back and raising a stranger's window.
+static LAST_FRONT: Mutex<Option<(isize, u32)>> = Mutex::new(None);
+
+fn pid_of(hwnd: HWND) -> u32 {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    pid
+}
 
 /// Handle of the foreground window, unless it is one of ours. Stored as an
 /// `isize` so it can live in the same slot as the macOS pid.
@@ -45,27 +97,41 @@ pub fn frontmost_window() -> Option<isize> {
         if hwnd.0.is_null() {
             return None;
         }
-        let mut pid = 0u32;
-        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        let pid = pid_of(hwnd);
         if pid == std::process::id() {
             return None;
         }
-        Some(hwnd.0 as isize)
+        let handle = hwnd.0 as isize;
+        *LAST_FRONT.lock().unwrap_or_else(|e| e.into_inner()) = Some((handle, pid));
+        Some(handle)
     }
 }
 
 /// Bring a window remembered by [`frontmost_window`] back to the front.
 ///
-/// `SetForegroundWindow` is refused unless the caller already owns the
-/// foreground, which is true here: the overlay's panel is what took it.
+/// `SetForegroundWindow` is only granted to a caller that already owns the
+/// foreground, which is true after the overlay's new-spell panel closes — the
+/// panel is what took it. It is *not* true when the wand is sheathed without
+/// the panel ever opening: on Windows the overlay is a no-activate window, so
+/// focus never left, the call is refused and there is nothing to fix. Hence
+/// `debug!` and not `warn!` — a warning here sends the next reader hunting a
+/// bug in the ordinary case.
 pub fn activate_window(handle: isize) {
     unsafe {
         let hwnd = HWND(handle as *mut c_void);
         if !IsWindow(Some(hwnd)).as_bool() {
             return;
         }
+        // The handle may have been recycled since it was remembered.
+        let owner = *LAST_FRONT.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((remembered, pid)) = owner {
+            if remembered == handle && pid_of(hwnd) != pid {
+                log::debug!("not activating {handle:#x}: the window it named is gone");
+                return;
+            }
+        }
         if !SetForegroundWindow(hwnd).as_bool() {
-            log::warn!("could not hand focus back to {handle:#x}");
+            log::debug!("focus stayed where it was; {handle:#x} was not raised");
         }
     }
 }
@@ -97,7 +163,7 @@ pub fn modifiers_down() -> (bool, bool, bool, bool) {
 /// folders and documents all work, and nothing flashes a console window on
 /// the way (which `cmd /C start` does).
 pub fn launch(path: &str) -> Result<(), String> {
-    com_init();
+    let _com = Com::init();
     let verb = HSTRING::from("open");
     let file = HSTRING::from(path);
     let rc = unsafe {
@@ -126,82 +192,176 @@ pub fn launch(path: &str) -> Result<(), String> {
 /// before any hook sees it, and `SendInput` cannot synthesize it. Calling the
 /// APIs behind each menu item needs no elevation and no policy change, which
 /// faking the sequence would.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SystemAction {
+    Lock,
+    SignOut,
+    SwitchUser,
+    TaskManager,
+    Sleep,
+}
+
+/// The ids the spellbook stores, in one place so they can be checked without
+/// locking anybody's screen. The frontend's list lives in `src/lib/system.ts`
+/// and has to agree with this one; `system_ids_are_the_ones_the_ui_offers`
+/// below is what fails when it stops agreeing.
+pub fn system_action_kind(id: &str) -> Option<SystemAction> {
+    Some(match id {
+        "lock" => SystemAction::Lock,
+        "signout" => SystemAction::SignOut,
+        "switchuser" => SystemAction::SwitchUser,
+        "taskmgr" => SystemAction::TaskManager,
+        "sleep" => SystemAction::Sleep,
+        _ => return None,
+    })
+}
+
 pub fn system_action(id: &str) -> Result<(), String> {
     use windows::Win32::System::Power::SetSuspendState;
     use windows::Win32::System::Shutdown::{
         ExitWindowsEx, LockWorkStation, EWX_LOGOFF, SHUTDOWN_REASON,
     };
-    match id {
-        "lock" => unsafe { LockWorkStation().map_err(|e| e.to_string()) },
-        "signout" => unsafe {
+    let action = system_action_kind(id).ok_or_else(|| format!("unknown system action: {id}"))?;
+    match action {
+        SystemAction::Lock => unsafe { LockWorkStation().map_err(|e| e.to_string()) },
+        SystemAction::SignOut => unsafe {
             ExitWindowsEx(EWX_LOGOFF, SHUTDOWN_REASON(0)).map_err(|e| e.to_string())
         },
         // Disconnecting the session is what "Switch user" does.
-        "switchuser" => launch(r"C:\Windows\System32	sdiscon.exe"),
-        "taskmgr" => launch(r"C:\Windows\System32\Taskmgr.exe"),
-        "sleep" => {
+        SystemAction::SwitchUser => launch(&system32("tsdiscon.exe")),
+        SystemAction::TaskManager => launch(&system32("Taskmgr.exe")),
+        SystemAction::Sleep => {
+            // `SetSuspendState` needs SE_SHUTDOWN_NAME, which every token has
+            // and none has enabled: without this the call just returns false.
+            if !enable_privilege(SE_SHUTDOWN_NAME) {
+                return Err("Windows would not grant the privilege to sleep".into());
+            }
             // Not hibernate, not forced: ask the way the power button does.
             let ok = unsafe { SetSuspendState(false, false, false) };
-            if !ok {
-                Err("the system refused to sleep".into())
-            } else {
+            if ok {
                 Ok(())
+            } else {
+                let code = unsafe { GetLastError() };
+                Err(format!("the system refused to sleep ({})", code.0))
             }
         }
-        other => Err(format!("unknown system action: {other}")),
+    }
+}
+
+/// Turn on a privilege the process already holds but has switched off.
+fn enable_privilege(name: PCWSTR) -> bool {
+    unsafe {
+        let mut token = HANDLE::default();
+        if OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut token,
+        )
+        .is_err()
+        {
+            return false;
+        }
+        let mut luid = LUID::default();
+        let mut ok = LookupPrivilegeValueW(PCWSTR::null(), name, &mut luid).is_ok();
+        if ok {
+            let tp = TOKEN_PRIVILEGES {
+                PrivilegeCount: 1,
+                Privileges: [LUID_AND_ATTRIBUTES {
+                    Luid: luid,
+                    Attributes: SE_PRIVILEGE_ENABLED,
+                }],
+            };
+            // Documented oddity: this succeeds even when it changed nothing,
+            // and says so through GetLastError instead of the return value.
+            ok = AdjustTokenPrivileges(token, false, Some(&tp), 0, None, None).is_ok()
+                && GetLastError() != ERROR_NOT_ALL_ASSIGNED;
+        }
+        let _ = CloseHandle(token);
+        ok
     }
 }
 
 // ---------- elevation ----------
 
-/// Is this process running elevated?
-fn self_elevated() -> bool {
+/// A token's integrity level as its RID: 0x2000 medium, 0x3000 high, 0x4000
+/// system. Comparing these is what decides whether input from us reaches a
+/// window at all — that is exactly the rule UIPI applies.
+fn integrity_of(token: HANDLE) -> Option<u32> {
     unsafe {
-        let mut token = HANDLE::default();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
-            return false;
-        }
-        let mut elevation = TOKEN_ELEVATION::default();
+        // Variable-length: ask for the size, then for the value.
         let mut len = 0u32;
-        let ok = windows::Win32::Security::GetTokenInformation(
+        let _ = GetTokenInformation(token, TokenIntegrityLevel, None, 0, &mut len);
+        if len == 0 {
+            return None;
+        }
+        let mut buf = vec![0u8; len as usize];
+        GetTokenInformation(
             token,
-            TokenElevation,
-            Some(&mut elevation as *mut _ as *mut c_void),
-            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            TokenIntegrityLevel,
+            Some(buf.as_mut_ptr() as *mut c_void),
+            len,
             &mut len,
         )
-        .is_ok();
+        .ok()?;
+        let label = &*(buf.as_ptr() as *const TOKEN_MANDATORY_LABEL);
+        let sid = label.Label.Sid;
+        let count = *GetSidSubAuthorityCount(sid);
+        if count == 0 {
+            return None;
+        }
+        Some(*GetSidSubAuthority(sid, count as u32 - 1))
+    }
+}
+
+/// Integrity level of a process, or `None` when it will not say.
+fn process_integrity(process: HANDLE) -> Option<u32> {
+    unsafe {
+        let mut token = HANDLE::default();
+        if OpenProcessToken(process, TOKEN_QUERY, &mut token).is_err() {
+            return None;
+        }
+        let level = integrity_of(token);
         let _ = CloseHandle(token);
-        ok && elevation.TokenIsElevated != 0
+        level
     }
 }
 
 /// Does the window in front belong to a process we cannot reach?
 ///
-/// A low-level hook and synthetic key presses are both blocked at an elevated
-/// window unless Wandful is elevated too, and the block is silent: the keys
-/// simply go nowhere. Opening the process is the cheapest probe there is —
-/// it is denied for exactly the windows we cannot type into.
+/// A low-level hook and synthetic key presses are both blocked at a window
+/// whose process runs at a higher integrity level than ours, and the block is
+/// silent: `SendInput` reports success and the keys go nowhere.
+///
+/// Opening the *process* is not the probe it looks like.
+/// `PROCESS_QUERY_LIMITED_INFORMATION` exists precisely so a medium-integrity
+/// caller can query a higher-integrity one — it is how an unelevated Task
+/// Manager lists elevated processes — so it succeeds for the very windows this
+/// is meant to catch. The token is what is guarded: opening it is refused
+/// across the boundary, and when it is not, its integrity level answers
+/// directly.
 pub fn foreground_unreachable() -> bool {
-    if self_elevated() {
-        return false;
-    }
     unsafe {
         let hwnd = GetForegroundWindow();
         if hwnd.0.is_null() {
             return false;
         }
-        let mut pid = 0u32;
-        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        let pid = pid_of(hwnd);
         if pid == 0 || pid == std::process::id() {
             return false;
         }
-        match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-            Ok(h) => {
-                let _ = CloseHandle(h);
-                false
-            }
-            Err(_) => true,
+        let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
+            // Denied even this much: nothing we send is going to arrive.
+            return true;
+        };
+        let theirs = process_integrity(process);
+        let _ = CloseHandle(process);
+        let ours = process_integrity(GetCurrentProcess());
+        match (theirs, ours) {
+            // Refused the token: the classic elevated-window case.
+            (None, _) => true,
+            (Some(theirs), Some(ours)) => theirs > ours,
+            // We cannot even read our own; assume the cast is worth trying.
+            (Some(_), None) => false,
         }
     }
 }
@@ -214,7 +374,7 @@ pub fn foreground_unreachable() -> bool {
 /// resolve the way they look in Explorer. The jumbo (256px) list is asked
 /// first to match the crispness the macOS side gets from `NSWorkspace`.
 pub fn app_icon_png(path: &str) -> Option<Vec<u8>> {
-    com_init();
+    let _com = Com::init();
     let wide = HSTRING::from(path);
     let mut info = SHFILEINFOW::default();
     let size = std::mem::size_of::<SHFILEINFOW>() as u32;
@@ -351,7 +511,7 @@ fn read_bgra(bitmap: *mut c_void, w: u32, h: u32) -> Option<Vec<u8>> {
             },
             ..Default::default()
         };
-        let mut px = vec![0u8; (w * h * 4) as usize];
+        let mut px = vec![0u8; w as usize * h as usize * 4];
         let lines = GetDIBits(
             hdc,
             windows::Win32::Graphics::Gdi::HBITMAP(bitmap),
@@ -377,11 +537,39 @@ fn encode_png(w: u32, h: u32, rgba: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::content_extent;
+    use super::{content_extent, system32, system_action_kind, SystemAction};
+
+    /// The five ids `src/lib/system.ts` offers. A spell saves whatever string
+    /// the UI put in it, so an id that only one side knows about becomes a
+    /// spell that saves fine and fails at cast time.
+    #[test]
+    fn system_ids_are_the_ones_the_ui_offers() {
+        for (id, kind) in [
+            ("lock", SystemAction::Lock),
+            ("signout", SystemAction::SignOut),
+            ("switchuser", SystemAction::SwitchUser),
+            ("taskmgr", SystemAction::TaskManager),
+            ("sleep", SystemAction::Sleep),
+        ] {
+            assert_eq!(system_action_kind(id), Some(kind), "{id} is not known");
+        }
+        assert_eq!(system_action_kind("shutdown"), None);
+        assert_eq!(system_action_kind(""), None);
+    }
+
+    /// A tab that had eaten its backslash lived inside a raw string here for a
+    /// while: `r"…\System32\tsdiscon.exe"` became `…\System32<TAB>sdiscon.exe`,
+    /// which no `rustfmt` or `clippy` pass can see and every cast failed on.
+    #[test]
+    fn system_paths_are_built_from_the_real_system_root() {
+        let p = system32("tsdiscon.exe");
+        assert!(p.ends_with(r"\System32\tsdiscon.exe"), "{p}");
+        assert!(!p.contains('\t'), "a literal tab crept into {p:?}");
+    }
 
     fn canvas(w: u32, h: u32, filled: (u32, u32, u32, u32)) -> Vec<u8> {
         let (x0, y0, x1, y1) = filled;
-        let mut px = vec![0u8; (w * h * 4) as usize];
+        let mut px = vec![0u8; w as usize * h as usize * 4];
         for y in y0..=y1 {
             for x in x0..=x1 {
                 px[((y * w + x) * 4 + 3) as usize] = 255;

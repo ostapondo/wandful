@@ -3,19 +3,12 @@
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
 pub fn press(shortcut: &str) -> Result<(), String> {
+    let (mods, key) = parse_chord(shortcut)?;
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| format!("enigo: {e:?}"))?;
-    let tokens: Vec<&str> = shortcut
-        .split('+')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .collect();
-    if tokens.is_empty() {
-        return Err("empty shortcut".into());
-    }
-    let (mods, key) = tokens.split_at(tokens.len() - 1);
-    let key = parse_key(key[0]).ok_or_else(|| format!("unknown key: {}", key[0]))?;
-    let mods: Vec<Key> = mods.iter().filter_map(|m| parse_key(m)).collect();
 
+    // The `?`s below can leave a modifier held only until `enigo` drops at the
+    // end of this function, where it releases every key it pressed. That is
+    // why an early return here is not a stuck Ctrl.
     for m in &mods {
         enigo
             .key(*m, Direction::Press)
@@ -30,6 +23,28 @@ pub fn press(shortcut: &str) -> Result<(), String> {
             .map_err(|e| format!("{e:?}"))?;
     }
     Ok(())
+}
+
+/// "Ctrl+Shift+S" → the modifiers to hold and the key to strike. Split out so
+/// the rules can be tested without a keyboard to type into.
+fn parse_chord(shortcut: &str) -> Result<(Vec<Key>, Key), String> {
+    let tokens: Vec<&str> = shortcut
+        .split('+')
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect();
+    if tokens.is_empty() {
+        return Err("empty shortcut".into());
+    }
+    let (mods, key) = tokens.split_at(tokens.len() - 1);
+    let key = parse_key(key[0]).ok_or_else(|| format!("unknown key: {}", key[0]))?;
+    // Every token has to parse: silently dropping one turns "Ctrl+Foo+K" into
+    // Ctrl+K, which is a different shortcut fired into somebody's editor.
+    let mods: Vec<Key> = mods
+        .iter()
+        .map(|m| parse_key(m).ok_or_else(|| format!("unknown key: {m}")))
+        .collect::<Result<_, _>>()?;
+    Ok((mods, key))
 }
 
 /// Punctuation as a virtual key, which is the only form that survives being
@@ -143,6 +158,69 @@ mod tests {
                 Some(Key::Other(got)) => assert_eq!(got, vk, "wrong code for {token}"),
                 other => panic!("{token} parsed as {other:?}, not a virtual key"),
             }
+        }
+    }
+
+    /// A corrupted or hand-edited spellbook must not cast something *else*.
+    #[test]
+    fn an_unknown_modifier_is_an_error_not_a_shrug() {
+        let e = parse_chord("Ctrl+Foo+K").unwrap_err();
+        assert!(e.contains("Foo"), "{e}");
+        assert!(parse_chord("").is_err());
+    }
+
+    /// The last token is the key and everything before it is a modifier —
+    /// the rule `splitChord` in `src/lib/chord.ts` has to mirror.
+    #[test]
+    fn the_last_token_is_the_key() {
+        let (mods, key) = parse_chord("CmdOrCtrl+Shift+M").expect("parses");
+        assert_eq!(mods.len(), 2);
+        assert!(matches!(key, Key::Unicode('m')));
+    }
+
+    /// The other half of the contract with `KEY_GROUPS` in src/lib/chord.ts:
+    /// the picker offers exactly these keycaps, and every one of them has to
+    /// be pressable. A key on one side only is a spell that saves and then
+    /// does nothing.
+    #[test]
+    fn every_key_the_picker_offers_can_be_pressed() {
+        let letters = ('A'..='Z').map(String::from);
+        let digits = ('0'..='9').map(String::from);
+        let function = (1..=12).map(|n| format!("F{n}"));
+        let named = [
+            "Enter",
+            "Space",
+            "Tab",
+            "Escape",
+            "Backspace",
+            "Delete",
+            "Home",
+            "End",
+            "PageUp",
+            "PageDown",
+            "Up",
+            "Down",
+            "Left",
+            "Right",
+            "-",
+            "=",
+            "[",
+            "]",
+            ";",
+            "'",
+            "\\",
+            ",",
+            ".",
+            "/",
+            "`",
+        ]
+        .into_iter()
+        .map(String::from);
+        for token in letters.chain(digits).chain(function).chain(named) {
+            assert!(
+                parse_key(&token).is_some(),
+                "the picker offers {token:?} and nothing can press it"
+            );
         }
     }
 

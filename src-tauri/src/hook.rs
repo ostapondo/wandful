@@ -91,6 +91,12 @@ impl HookState {
     fn tracked_only() -> Arc<Self> {
         Self::with_mod_source(|| None)
     }
+    /// A state whose OS answers "nothing is held", whatever the keyboard in
+    /// front of the developer running the tests is doing.
+    #[cfg(test)]
+    fn nothing_held() -> Arc<Self> {
+        Self::with_mod_source(|| Some(Mods::default()))
+    }
 
     /// Start swallowing keys and reporting them as chords.
     ///
@@ -103,7 +109,7 @@ impl HookState {
     /// secure desktop — and leaves the tracking that works alone.
     pub fn begin_capture(&self) {
         if let Some(live) = (self.mod_source)() {
-            *self.mods.lock().unwrap() = live;
+            *self.mods.lock().unwrap_or_else(|e| e.into_inner()) = live;
         }
         self.capture_keys.store(true, Ordering::SeqCst);
     }
@@ -199,8 +205,14 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
     };
 
     let capturing = state.capture_keys.load(Ordering::SeqCst);
+    // `trace!`, deliberately: this runs inside the low-level hook callback,
+    // where the whole budget is `LowLevelHooksTimeout` (300ms by default) and
+    // an overrun has Windows drop the hook from the chain without a word — the
+    // exact failure the vendored `grab` patch exists to prevent. A disabled
+    // level costs an atomic load; an enabled one writes to the log file from
+    // this thread, which is why it is off unless someone asks for it by hand.
     if capturing {
-        log::info!("hook saw {key:?} down={down} token={:?}", key_token(key));
+        log::trace!("hook saw {key:?} down={down} token={:?}", key_token(key));
     }
 
     if key == Key::Escape {
@@ -223,7 +235,9 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
 
     // Track modifiers at all times so releases that arrive after capture ends
     // don't leave stale state behind.
-    let mut m = state.mods.lock().unwrap();
+    // Poisoning would mean a panic in a hook callback; take the state as it is
+    // rather than adding a second panic on top of it.
+    let mut m = state.mods.lock().unwrap_or_else(|e| e.into_inner());
     match key {
         Key::MetaLeft | Key::MetaRight => m.meta = down,
         Key::ControlLeft | Key::ControlRight => m.ctrl = down,
@@ -294,9 +308,17 @@ pub fn spawn(state: Arc<HookState>, tx: Sender<Msg>) {
                 let _ = tx.send(Msg::HookError(format!("{e:?}")));
                 let st = state.clone();
                 let tx3 = tx.clone();
-                if let Err(e) = rdev::listen(move |event: Event| {
+                let cb = move |event: Event| {
                     handle(&st, &tx3, &event);
-                }) {
+                };
+                // Keyboard only here as well: a mouse hook that fires on every
+                // pointer move is what gets the whole chain dropped, and the
+                // overlay reads the mouse itself.
+                #[cfg(target_os = "windows")]
+                let res = rdev::listen_keys(cb);
+                #[cfg(not(target_os = "windows"))]
+                let res = rdev::listen(cb);
+                if let Err(e) = res {
                     log::error!("listen failed too: {e:?}");
                 }
             }
@@ -388,11 +410,13 @@ mod tests {
     /// Del, the secure desktop takes the machine, and the two releases happen
     /// where no hook can see them. Tracked state alone would then put
     /// `Ctrl+Alt` on every chord for the rest of the session.
-    #[cfg(target_os = "windows")]
     #[test]
     fn a_release_the_hook_never_saw_does_not_haunt_later_chords() {
         let (tx, rx) = channel();
-        let st = HookState::new(); // the real, OS-backed source
+        // Seeded from an OS that says nothing is held. The real source is
+        // `os_mods`; asking it here would make the test depend on whether the
+        // developer happens to be holding Shift when they run it.
+        let st = HookState::nothing_held();
         st.begin_capture();
         handle(&st, &tx, &ev(Key::ControlLeft, true));
         handle(&st, &tx, &ev(Key::Alt, true));

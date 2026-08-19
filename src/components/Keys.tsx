@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { appIcon } from "../api/tauri";
-import { systemLabel } from "../api/types";
+import { systemLabel } from "../lib/system";
 import { keyTokens, prettyKey } from "../lib/keys";
 import { selectIsMac, useApp } from "../state/app";
 

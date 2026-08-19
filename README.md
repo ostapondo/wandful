@@ -116,10 +116,11 @@ what the app does not do.
 Nothing to grant — the low-level hooks Windows uses need no permission. Three
 things behave differently from macOS:
 
-- **A window running as administrator is out of reach.** A hook in a normal
-  process can neither see its keys nor type into it, and Windows gives no
-  error when it refuses. Wandful notices and says so instead of casting into
-  nothing. Start Wandful as administrator to reach those windows.
+- **A window running as administrator is out of reach.** Windows will not let
+  an ordinary process type into one that runs with more privilege than it has,
+  and gives no error when it refuses — the keys simply go nowhere. Wandful
+  checks before it casts and says so instead. Start Wandful as administrator
+  to reach those windows.
 - **The overlay covers the primary monitor.** Multi-monitor is on
   [ROADMAP.md](ROADMAP.md).
 - **The wand never takes focus**, so summoning it does not interrupt what you
@@ -128,15 +129,18 @@ things behave differently from macOS:
 
 #### Shortcuts Windows keeps for itself
 
-Most combinations record and cast fine, including ones with the Windows key:
-while a spell is recording, Wandful swallows the keys, so `Win+D` is captured
-rather than acted on. Two kinds are different, and no application can change
-that:
+In the spellbook you *build* a shortcut rather than press it — click the keys,
+or press the combination into the panel — so what the OS would have eaten on
+the way never comes up. Casting is the half that has limits, and two
+combinations no application can send:
 
-| Combination | Record | Cast | Why |
+| Combination | Build | Cast | Why |
 |---|---|---|---|
-| `Ctrl+Alt+Del` | no | no | The Secure Attention Sequence. The kernel takes it before any hook sees it, and `SendInput` cannot produce it. This is what makes the sign-in screen impossible to spoof. |
-| `Win+L` | unreliable | no | Handled by the shell ahead of ordinary hooks. |
+| `Ctrl+Alt+Del` | yes | no | The Secure Attention Sequence. The kernel takes it before any hook sees it, and `SendInput` cannot produce it. This is what makes the sign-in screen impossible to spoof. |
+| `Win+L` | yes | no | Windows locks the screen itself, ahead of anything an application sends. |
+
+Both are refused when you build them, with the reason, rather than saved as a
+spell that does nothing.
 
 For what people actually want from that screen, use a **System** spell instead
 of trying to fake the keys: it locks, signs out, switches user, opens Task
@@ -151,13 +155,15 @@ pointing at `C:\Windows\System32\Taskmgr.exe`.
 2. Hold **any mouse button** and draw a rune. Release, and the matching spell
    is cast into the app you were in; the wand goes away by itself.
 3. Drew something no spell knows? The wand offers **Make it a spell** right
-   there (or press `N`): name it, press the keys or pick an app, save.
+   there (or press `N`): name it, press the keys — the wand holds them back
+   from the app underneath while it listens — or pick an app, save.
 4. Changed your mind? Click without drawing, press `Esc`, or hit the ✕ in the
    corner.
 5. In the spellbook: draw a rune on the canvas, name it, click **Shortcut** and
-   press the keys — or pick an app to open — then **Save spell**. Click a spell
-   in the list to edit or delete it. The spellbook starts empty; every rune and
-   shortcut is yours. **Strictness** controls how precise the rune must be.
+   build the combination — click the keys, or just press them — or pick an app
+   to open, then **Save spell**. Click a spell in the list to edit or delete
+   it. The spellbook starts empty; every rune and shortcut is yours.
+   **Strictness** controls how precise the rune must be.
 
 <p align="center">
   <img src="docs/spellbook.gif" width="720"
@@ -165,17 +171,18 @@ pointing at `C:\Windows\System32\Taskmgr.exe`.
 </p>
 
 Spells are stored in `spellbook.json` in the app config directory
-(`~/Library/Application Support/com.ostap.wandful/`). Back it up, share it,
-edit it by hand — it is plain JSON.
+(`~/Library/Application Support/com.ostap.wandful/` on macOS,
+`%APPDATA%\com.ostap.wandful\` on Windows). Back it up, share it, edit it by
+hand — it is plain JSON.
 
 ## How it works
 
 | | |
 | --- | --- |
-| **Global hook** | `rdev`, vendored and patched, watches the keyboard only: `Esc` while the wand is out, and key chords while the spellbook records a shortcut. Nothing is grabbed while the wand is away |
-| **Overlay** | A full-screen transparent Tauri window, hidden until the wand is summoned. While it is up it takes focus, handles the mouse itself, draws the wand and the trail on a canvas, then hands focus back to the app you came from |
+| **Global hook** | `rdev`, vendored and patched, watches the keyboard only: `Esc` while the wand is out, and the keys while the overlay's new-spell panel records a shortcut. Nothing is grabbed while the wand is away |
+| **Overlay** | A full-screen transparent Tauri window, hidden until the wand is summoned. It handles the mouse itself and draws the wand and the trail on a canvas. On macOS it takes focus while it is up (a window there only gets mouse-moved events while its app is active) and hands it back before the cast; on Windows it never takes focus at all, apart from that panel |
 | **Recognizer** | `$1 Unistroke` in ~170 lines of Rust. Runes are resampled, rotated, scaled and compared by path distance; strictness is a threshold on that score |
-| **Casting** | Shortcuts are typed with `enigo`; apps are opened with `open` / `start` |
+| **Casting** | Shortcuts are typed with `enigo`; apps are opened with `open` (macOS) or `ShellExecute` (Windows) |
 | **Spellbook** | A second Tauri window: React + zustand, one small CSS file |
 
 ```
@@ -193,7 +200,9 @@ src-tauri/src/
   recognizer.rs        $1 unistroke recognizer
   spells.rs            spellbook persistence
   shortcut.rs          "Cmd+Shift+S" → key presses
-src-tauri/vendor/rdev  patched rdev (macOS drag events + no TSM calls off the main thread)
+  win.rs               the Win32 side: focus, ShellExecute, shell icons, system actions
+src-tauri/vendor/rdev  patched rdev (macOS drag delivery + no TSM calls off the tap
+                       thread; Windows keyboard-only hooks + a real message pump)
 scripts/               icons, README media, macOS signing helpers
 ```
 

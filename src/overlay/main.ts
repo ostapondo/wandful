@@ -3,12 +3,13 @@
 // two small DOM pieces — the outcome chip under the stroke and the "New spell"
 // panel that binds a rune nobody recognised.
 import { api, listen } from "../api/tauri";
-import { systemLabel } from "../api/types";
+import { chordProblem, splitChord } from "../lib/chord";
+import { systemLabel } from "../lib/system";
 import type { ActionKind, CastResult, OverlayStyleEvent, Spell, WandModeEvent } from "../api/types";
 import { hexToRgba } from "../lib/color";
 import { chordLabel, keyTokens, prettyKey } from "../lib/keys";
 import { pickApp } from "../api/dialog";
-import { installRecorder, recorderStore, startRecording, stopRecording } from "../state/recorder";
+import { installRecorder, recorderStore, stopRecording, toggleRecording } from "../state/recorder";
 import { Wand, drawRunePreview, fitCanvas, type Pt } from "../wand/wand";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -287,12 +288,22 @@ panel
   .querySelectorAll<HTMLButtonElement>("#kind button")
   .forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind as ActionKind)));
 shortcutBtn.addEventListener("click", () => {
-  if (recorderStore.getState().recordingId === "overlay-shortcut") stopRecording();
-  else
-    startRecording("overlay-shortcut", (chord) => {
-      shortcut = chord;
+  // Recorded, not built: the panel is a strip over a drawn rune and a keycap
+  // grid does not fit on it. What the spellbook's picker refuses is refused
+  // here too, so neither door saves a spell that can never fire — see
+  // `chordProblem`, which is the one place those rules live.
+  toggleRecording("overlay-shortcut", (chord) => {
+    const { mods, key } = splitChord(chord, mac);
+    const problem = chordProblem(mods, key, mac);
+    if (problem) {
+      setMsg(problem);
       renderBind();
-    });
+      return;
+    }
+    shortcut = chord;
+    setMsg("");
+    renderBind();
+  });
 });
 appBtn.addEventListener("click", async () => {
   if (dialogOpen) return;

@@ -15,7 +15,7 @@ export function CaptionButtons() {
     const un = caption.onResized(sync);
     return () => {
       live = false;
-      un.then((f) => f());
+      un.then((f) => f()).catch(() => {});
     };
   }, []);
 
