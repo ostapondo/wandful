@@ -2,6 +2,8 @@ mod hook;
 mod recognizer;
 mod shortcut;
 mod spells;
+#[cfg(target_os = "windows")]
+mod win;
 
 use hook::{HookState, Msg};
 use recognizer::Point;
@@ -12,7 +14,9 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+#[cfg(target_os = "macos")]
+use tauri::menu::Submenu;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
@@ -22,8 +26,9 @@ pub struct AppState {
     path: PathBuf,
     hook: Arc<HookState>,
     tray_toggle: Mutex<Option<MenuItem<tauri::Wry>>>,
-    /// pid of the app that was frontmost when the wand was summoned (macOS)
-    prev_app: Mutex<Option<i32>>,
+    /// Who was in front when the wand was summoned, so focus can be handed
+    /// back before a cast: a pid on macOS, an `HWND` on Windows.
+    prev_app: Mutex<Option<isize>>,
     icon_cache: Mutex<std::collections::HashMap<String, Option<String>>>,
 }
 
@@ -39,10 +44,11 @@ struct CastResult {
     id: Option<String>,
     name: Option<String>,
     shortcut: Option<String>,
-    /// "shortcut" | "app"
+    /// "shortcut" | "app" | "system"
     action: Option<String>,
     app_path: Option<String>,
     app_name: Option<String>,
+    system: Option<String>,
     score: f64,
 }
 
@@ -72,26 +78,44 @@ fn get_book(state: State<AppState>) -> Book {
     state.book.lock().unwrap().clone()
 }
 
-#[tauri::command]
-fn save_spell(app: AppHandle, state: State<AppState>, mut spell: Spell) -> Result<Book, String> {
+/// Why a spell cannot be saved yet, or `None` when it can. Each kind of spell
+/// needs its own thing filled in, and only its own: a system spell has no
+/// shortcut to give, which an `else` branch over "not an app" gets wrong.
+fn spell_problem(spell: &Spell) -> Option<&'static str> {
     if spell.points.len() < 4 {
-        return Err("Draw a longer rune".into());
+        return Some("Draw a longer rune");
     }
     if spell.name.trim().is_empty() {
-        return Err("Give the spell a name".into());
+        return Some("Give the spell a name");
     }
-    if spell.action == "app" {
-        if spell.app_path.trim().is_empty() {
-            return Err("Choose an application".into());
-        }
-    } else if spell.shortcut.trim().is_empty() {
-        return Err("Choose a shortcut".into());
+    match spell.action.as_str() {
+        "app" if spell.app_path.trim().is_empty() => Some("Choose an application"),
+        "system" if spell.system.trim().is_empty() => Some("Pick a system action"),
+        "app" | "system" => None,
+        _ if spell.shortcut.trim().is_empty() => Some("Choose a shortcut"),
+        _ => None,
+    }
+}
+
+/// What a spell does, for the log.
+fn spell_target(spell: &Spell) -> String {
+    match spell.action.as_str() {
+        "app" => format!("open {}", spell.app_name),
+        "system" => format!("system:{}", spell.system),
+        _ => spell.shortcut.clone(),
+    }
+}
+
+#[tauri::command]
+fn save_spell(app: AppHandle, state: State<AppState>, mut spell: Spell) -> Result<Book, String> {
+    if let Some(problem) = spell_problem(&spell) {
+        return Err(problem.into());
     }
     log::info!(
         "save_spell {} ({} pts) -> {}",
         spell.name,
         spell.points.len(),
-        spell.shortcut
+        spell_target(&spell)
     );
     let mut book = state.book.lock().unwrap();
     if spell.id.is_empty() {
@@ -275,6 +299,21 @@ fn cast(app: AppHandle, state: State<AppState>, points: Vec<Point>) -> CastResul
     result
 }
 
+/// The parts of the `Ctrl+Alt+Del` menu an unprivileged app can reach. That
+/// sequence is unreachable in both directions — the kernel takes it before any
+/// hook sees it and `SendInput` cannot synthesize it — so these call the APIs
+/// behind its menu items instead of pretending to press it.
+fn run_system_action(id: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        win::system_action(id)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err(format!("no system action \"{id}\" outside Windows"))
+    }
+}
+
 fn perform(app: &AppHandle, r: &CastResult) {
     if r.action.as_deref() == Some("app") {
         if let Some(path) = r.app_path.clone() {
@@ -282,7 +321,30 @@ fn perform(app: &AppHandle, r: &CastResult) {
                 log::error!("launch failed: {e}");
             }
         }
+    } else if r.action.as_deref() == Some("system") {
+        if let Some(id) = r.system.clone() {
+            if let Err(e) = run_system_action(&id) {
+                log::error!("system action {id} failed: {e}");
+                let _ = app.emit("wand:hook-error", e);
+            }
+        }
     } else if let Some(sc) = r.shortcut.clone() {
+        // A low-level hook cannot type into a window owned by an elevated
+        // process unless Wandful is elevated too, and the keys would go
+        // nowhere silently. Say so rather than retrying.
+        #[cfg(target_os = "windows")]
+        if win::foreground_unreachable() {
+            log::warn!("cast dropped: the window in front runs elevated");
+            let _ = app.emit(
+                "wand:hook-error",
+                concat!(
+                    "That window runs as administrator, so Wandful cannot type ",
+                    "into it. Start Wandful as administrator too, or press the ",
+                    "shortcut by hand."
+                ),
+            );
+            return;
+        }
         press_on_main(app, sc);
     }
 }
@@ -296,12 +358,7 @@ fn launch_app(path: &str) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
+    win::launch(path)?;
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         std::process::Command::new("xdg-open")
@@ -361,18 +418,7 @@ fn extract_app_icon(path: &str) -> Option<Vec<u8>> {
 }
 #[cfg(target_os = "windows")]
 fn extract_app_icon(path: &str) -> Option<Vec<u8>> {
-    let tmp = std::env::temp_dir().join(format!("wandful-icon-{}.png", std::process::id()));
-    let script = format!(
-        "Add-Type -AssemblyName System.Drawing; $i=[System.Drawing.Icon]::ExtractAssociatedIcon('{}'); $b=$i.ToBitmap(); $b.Save('{}',[System.Drawing.Imaging.ImageFormat]::Png)",
-        path.replace('\'', "''"),
-        tmp.display()
-    );
-    let _ = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
-        .output();
-    let png = std::fs::read(&tmp).ok();
-    let _ = std::fs::remove_file(&tmp);
-    png
+    win::app_icon_png(path)
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn extract_app_icon(_path: &str) -> Option<Vec<u8>> {
@@ -437,18 +483,32 @@ fn accessibility_trusted(_prompt: bool) -> bool {
     true
 }
 
+/// How long the keyboard may stay swallowed while nobody presses anything.
+/// Long enough to decide on a chord, short enough that a wedged recording is
+/// an annoyance rather than a dead keyboard.
+const CAPTURE_TIMEOUT: Duration = Duration::from_secs(30);
+
 #[tauri::command]
-fn set_key_capture(state: State<AppState>, on: bool) {
-    state.hook.capture_keys.store(on, Ordering::SeqCst);
+fn set_key_capture(app: AppHandle, state: State<AppState>, on: bool) {
     if on {
-        // Safety net: never swallow the keyboard for more than a few seconds.
-        // The generation guard keeps an old timer from ending a newer capture.
+        state.hook.begin_capture();
+    } else {
+        state.hook.capture_keys.store(false, Ordering::SeqCst);
+    }
+    log::info!("key capture {}", if on { "on" } else { "off" });
+    if on {
+        // Safety net: never swallow the keyboard indefinitely. The generation
+        // guard keeps an old timer from ending a newer capture.
         let gen = state.hook.capture_gen.fetch_add(1, Ordering::SeqCst) + 1;
         let hook = state.hook.clone();
         std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_secs(8));
+            std::thread::sleep(CAPTURE_TIMEOUT);
             if hook.capture_gen.load(Ordering::SeqCst) == gen {
                 hook.capture_keys.store(false, Ordering::SeqCst);
+                // Tell the button, or it goes on saying "Press keys…" over a
+                // keyboard that is no longer being listened to.
+                log::info!("key capture timed out");
+                let _ = app.emit("wand:capture-ended", ());
             }
         });
     }
@@ -467,6 +527,14 @@ fn set_overlay_panel(app: AppHandle, state: State<AppState>, on: bool) {
         let _ = overlay.set_focusable(on);
         if on {
             let _ = overlay.set_focus();
+        } else {
+            // The panel is the one thing that takes focus here; hand it back
+            // so the next cast lands in the app underneath, not in Wandful.
+            // Peeked, not taken — sheathing the wand still needs it.
+            let front = *state.prev_app.lock().unwrap();
+            if let Some(front) = front {
+                activate_app(front);
+            }
         }
     }
     #[cfg(target_os = "macos")]
@@ -507,6 +575,7 @@ fn recognize_with(book: &Book, points: &[Point]) -> CastResult {
                 action: spell.map(|s| s.action.clone()),
                 app_path: spell.map(|s| s.app_path.clone()),
                 app_name: spell.map(|s| s.app_name.clone()),
+                system: spell.map(|s| s.system.clone()),
                 score: m.score,
             }
         }
@@ -520,6 +589,7 @@ fn recognize_with(book: &Book, points: &[Point]) -> CastResult {
                 action: None,
                 app_path: None,
                 app_name: None,
+                system: None,
                 score: m.score,
             }
         }
@@ -531,30 +601,48 @@ fn recognize_with(book: &Book, points: &[Point]) -> CastResult {
             action: None,
             app_path: None,
             app_name: None,
+            system: None,
             score: 0.0,
         },
     }
 }
 
-/// macOS: pid of the frontmost app.
+/// Who is in front right now, as something [`activate_app`] can take back:
+/// a pid on macOS, a window handle on Windows.
 #[cfg(target_os = "macos")]
-fn frontmost_pid() -> Option<i32> {
+fn frontmost_app() -> Option<isize> {
     use objc2_app_kit::NSWorkspace;
+    let me = std::process::id() as isize;
     NSWorkspace::sharedWorkspace()
         .frontmostApplication()
-        .map(|a| a.processIdentifier())
+        .map(|a| a.processIdentifier() as isize)
+        .filter(|&pid| pid != me)
 }
 /// macOS: bring the app with `pid` back to the front.
 #[cfg(target_os = "macos")]
-fn activate_pid(pid: i32) {
+fn activate_app(pid: isize) {
     use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
-    if let Some(a) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+    if let Some(a) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid as i32) {
         // Deprecated (a no-op) from macOS 14, but the bundle still targets 10.15
         // where it is the only way to steal focus back after the overlay hides.
         #[allow(deprecated)]
         a.activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
     }
 }
+#[cfg(target_os = "windows")]
+fn frontmost_app() -> Option<isize> {
+    win::frontmost_window()
+}
+#[cfg(target_os = "windows")]
+fn activate_app(handle: isize) {
+    win::activate_window(handle)
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn frontmost_app() -> Option<isize> {
+    None
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn activate_app(_handle: isize) {}
 
 fn set_wand_mode(app: &AppHandle, on: bool) {
     let state = app.state::<AppState>();
@@ -565,11 +653,11 @@ fn set_wand_mode(app: &AppHandle, on: bool) {
     if let Some(overlay) = app.get_webview_window("overlay") {
         if on {
             // Remember who was in front so we can hand focus back when casting.
-            #[cfg(target_os = "macos")]
+            // On Windows the overlay is no-activate and normally takes nothing,
+            // but its new-spell panel does, and the cast has to land in the
+            // app underneath either way.
             if !was_on {
-                let me = std::process::id() as i32;
-                let front = frontmost_pid().filter(|&p| p != me);
-                *state.prev_app.lock().unwrap() = front;
+                *state.prev_app.lock().unwrap() = frontmost_app();
             }
             let _ = overlay.show();
             // On macOS a window only receives mouse-moved events while its app is
@@ -578,11 +666,9 @@ fn set_wand_mode(app: &AppHandle, on: bool) {
             let _ = overlay.set_focus();
         } else {
             let _ = overlay.hide();
-            #[cfg(target_os = "macos")]
-            if was_on {
-                if let Some(pid) = state.prev_app.lock().unwrap().take() {
-                    activate_pid(pid);
-                }
+            let front = state.prev_app.lock().unwrap().take();
+            if let (true, Some(front)) = (was_on, front) {
+                activate_app(front);
             }
         }
     }
@@ -645,6 +731,7 @@ fn spawn_worker(app: AppHandle, rx: mpsc::Receiver<Msg>) {
                         let _ = app.emit("wand:hook-error", e);
                     }
                     Msg::KeyChord { mods, key } => {
+                        log::info!("chord captured: {mods:?}+{key}");
                         // Both windows may be recording a shortcut: the spellbook
                         // form, or the overlay's new-spell panel. Each ignores
                         // chords while it is not listening.
@@ -656,16 +743,23 @@ fn spawn_worker(app: AppHandle, rx: mpsc::Receiver<Msg>) {
         .expect("spawn worker");
 }
 
+/// Where `wandful.log` goes. Each platform's own log directory, because an
+/// app started from the Finder or the Start menu has no stderr to fall back
+/// on: `HOME` is not set for either, and on Windows it is a shell's idea of
+/// home when it is set at all.
+fn log_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    return std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Logs/Wandful"));
+    #[cfg(target_os = "windows")]
+    return std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("Wandful").join("logs"));
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    return std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".wandful"));
+}
+
 fn init_logging() {
     let mut builder =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
-    if let Some(home) = home {
-        let dir = std::path::PathBuf::from(home).join(if cfg!(target_os = "macos") {
-            "Library/Logs/Wandful"
-        } else {
-            ".wandful"
-        });
+    if let Some(dir) = log_dir() {
         if std::fs::create_dir_all(&dir).is_ok() {
             if let Ok(f) = std::fs::OpenOptions::new()
                 .create(true)
@@ -745,6 +839,15 @@ pub fn run() {
                     &[&PredefinedMenuItem::about(app, None, None)?],
                 )?;
                 app.set_menu(Menu::with_items(app, &[&app_menu, &edit])?)?;
+            }
+
+            // Windows draws a title bar that `titleBarStyle: "Overlay"` cannot
+            // hide the way macOS does, so the spellbook would carry two of
+            // them. Drop the native frame and let `Titlebar` own the whole bar;
+            // `CaptionButtons` supplies the minimize/maximize/close it takes away.
+            #[cfg(target_os = "windows")]
+            if let Some(w) = app.get_webview_window("main") {
+                w.set_decorations(false)?;
             }
 
             create_overlay(&handle)?;
@@ -827,4 +930,63 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Wandful");
+}
+
+#[cfg(test)]
+mod save_rules {
+    use super::*;
+
+    fn spell(action: &str) -> Spell {
+        Spell {
+            id: String::new(),
+            name: "Named".into(),
+            shortcut: String::new(),
+            action: action.into(),
+            app_path: String::new(),
+            app_name: String::new(),
+            system: String::new(),
+            points: vec![(0.0, 0.0); 4],
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn a_rune_and_a_name_come_first() {
+        let mut s = spell("shortcut");
+        s.points.clear();
+        assert_eq!(spell_problem(&s), Some("Draw a longer rune"));
+        let mut s = spell("shortcut");
+        s.name = "  ".into();
+        assert_eq!(spell_problem(&s), Some("Give the spell a name"));
+    }
+
+    #[test]
+    fn each_kind_asks_for_its_own_thing() {
+        assert_eq!(spell_problem(&spell("shortcut")), Some("Choose a shortcut"));
+        assert_eq!(spell_problem(&spell("app")), Some("Choose an application"));
+        assert_eq!(
+            spell_problem(&spell("system")),
+            Some("Pick a system action")
+        );
+    }
+
+    /// A system spell has no shortcut to give: the check that used to be an
+    /// `else` over "not an app" demanded one and made saving impossible.
+    #[test]
+    fn a_system_spell_needs_no_shortcut() {
+        let mut s = spell("system");
+        s.system = "taskmgr".into();
+        assert_eq!(spell_problem(&s), None);
+        assert_eq!(spell_target(&s), "system:taskmgr");
+    }
+
+    #[test]
+    fn a_filled_in_spell_of_each_kind_saves() {
+        let mut s = spell("shortcut");
+        s.shortcut = "Ctrl+K".into();
+        assert_eq!(spell_problem(&s), None);
+        let mut s = spell("app");
+        s.app_path = r"C:\app.exe".into();
+        assert_eq!(spell_problem(&s), None);
+    }
 }

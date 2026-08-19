@@ -25,7 +25,9 @@ guide, so read it before a second change. Naming and tone rules are in
 - `src-tauri/src/` — the app. `lib.rs` is the wiring: windows, tray, hotkey,
   commands, the worker thread. Behaviour lives beside it in one file per
   concern: `hook.rs` (global keyboard hook state), `recognizer.rs` (`$1`),
-  `spells.rs` (spellbook file), `shortcut.rs` (string → key presses).
+  `spells.rs` (spellbook file), `shortcut.rs` (string → key presses),
+  `win.rs` (the Win32 calls, the counterpart of the `objc2` blocks in
+  `lib.rs`: foreground window, `ShellExecute`, shell icons, elevation).
 - `src-tauri/vendor/rdev/` — a vendored copy of `rdev` 0.5.3 with local
   patches, pulled in as a path dependency. Every patch carries a
   `// PATCHED (wandful): …` comment saying why. There are two today: macOS
@@ -79,13 +81,43 @@ This is where the hours have gone.
 
 ## Windows
 
+- **Build with MSVC.** `rustup default stable-msvc`; the GNU toolchain
+  fails to link the app (`export ordinal too large`) and Tauri does not
+  support it on Windows. CI and the release matrix both use MSVC.
 - Low-level hooks need no permission but cannot see or reach an
-  elevated window unless Wandful is elevated too. Say so, do not retry.
+  elevated window unless Wandful is elevated too. `win::foreground_unreachable`
+  is the probe — opening the process is denied for exactly those windows —
+  and `perform` drops the cast with a message. Say so, do not retry.
 - The overlay covers the primary monitor. Multi-monitor is on the roadmap;
   a change there touches `create_overlay` in `lib.rs` and nothing else.
 - The overlay is a no-activate window so drawing never steals focus; the
   new-spell panel flips it focusable for as long as it is open
-  (`set_overlay_panel`). Untested on real Windows hardware — see the
+  (`set_overlay_panel`). Because the panel *does* take focus, both it and
+  `set_wand_mode` hand it back through `activate_app`, using the window
+  remembered in `prev_app` when the wand was summoned. A regression here looks
+  like a cast landing in Wandful instead of the app you drew over.
+- `prev_app` holds a pid on macOS and an `HWND` on Windows, both as `isize`,
+  behind the same `frontmost_app` / `activate_app` pair. Keep new platform
+  code behind that shape rather than adding a second field.
+- The **System** action (`win::system_action`) exists because `Ctrl+Alt+Del` is
+  unreachable in both directions — the kernel takes the sequence before any
+  hook sees it, and `SendInput` cannot synthesize it. Making it work would need
+  `SendSAS`, which means a signed `UIAccess` binary plus a machine-wide
+  `SoftwareSASGeneration` policy: both break what `SECURITY.md` promises. Call
+  the API behind the menu item instead. It is Windows-only, and `SpellForm`
+  hides the segment on macOS rather than offering something that errors.
+- Icons and launching go through the shell (`SHGetImageList`, `ShellExecuteW`),
+  not a subprocess: a `cmd` or `powershell` child flashes a console window on
+  a desktop app. Anything new that shells out on Windows has the same problem.
+- The spellbook window is undecorated here: `titleBarStyle: "Overlay"` is
+  macOS-only, so Windows would draw a second title bar under its own. `lib.rs`
+  drops the frame at setup and `CaptionButtons` supplies the buttons that goes
+  with. Snap Layouts (the flyout on hovering maximize) need `WM_NCHITTEST` to
+  report `HTMAXBUTTON` and are deliberately not implemented; Win+arrow still
+  snaps.
+- Verified by hand on Windows 11: hotkey summon/sheathe with focus staying
+  put, shell icons and launching for `.exe`, `.lnk` and folders. Drawing and
+  casting by hand, the recorder and multi-monitor are not — see the
   `needs-hardware` label.
 
 ## Frontend
@@ -125,6 +157,14 @@ with a test beside it in `__tests__/`. `npm run format` is Prettier.
 
 The hook and the overlay need a real desktop session and are tested by hand:
 draw a rune, watch the log.
+
+**Run the app through the Tauri CLI, never bare `cargo`.** `npm run tauri dev`
+or `npm run tauri build`; a plain `cargo build` (debug *or* release) produces a
+binary whose web view loads `devUrl` — `http://localhost:1420` — instead of the
+embedded `dist`, because the CLI is what sets the environment that decides it.
+Launched on its own, that binary shows `ERR_CONNECTION_REFUSED` in a window
+whose tray, hotkey and hook all work perfectly, which is a confusing half hour
+if you do not know it.
 
 CI runs, on macOS and Windows: `npm ci && npm test && npm run build`, `cargo fmt --check`,
 `cargo clippy --all-targets -- -D warnings`, `cargo test`. Run the same

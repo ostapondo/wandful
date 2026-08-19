@@ -11,7 +11,7 @@ page is what you can check instead of trusting it, and where the checks stop.
 | --- | --- |
 | **Accessibility (macOS)** | Watch global mouse and keyboard events, so a right-button drag can become a gesture; and synthesize key presses, so a spell can cast a shortcut. Granted by you, revocable in System Settings → Privacy & Security. Without it the app runs listen-only |
 | **Windows** | Low-level mouse and keyboard hooks need no permission. Key synthesis cannot reach a window running as Administrator unless Wandful does too |
-| **Disk** | The spellbook, `spellbook.json`, in the app config directory; a log file, `~/Library/Logs/Wandful/wandful.log` on macOS or `%HOME%\.wandful\wandful.log` on Windows when `HOME` is set (otherwise the log goes to stderr only); nothing else |
+| **Disk** | The spellbook, `spellbook.json`, in the app config directory; a log file, `~/Library/Logs/Wandful/wandful.log` on macOS or `%LOCALAPPDATA%\Wandful\logs\wandful.log` on Windows; nothing else |
 | **Processes** | A spell can open an app or path you chose, via `open` (macOS) or `start` (Windows). Only paths you saved in the spellbook |
 | **Network** | None. Wandful makes no outbound connections and listens on no port |
 

@@ -23,7 +23,7 @@ pub enum Msg {
     KeyChord { mods: Vec<String>, key: String },
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy, PartialEq, Debug)]
 struct Mods {
     meta: bool,
     ctrl: bool,
@@ -31,7 +31,35 @@ struct Mods {
     shift: bool,
 }
 
+/// What the OS says is held down, when it can be asked.
+///
+/// Only ever read when a capture *starts* — see [`HookState::begin_capture`]
+/// for why it is useless once one is under way.
+fn os_mods() -> Option<Mods> {
+    #[cfg(target_os = "windows")]
+    {
+        let (meta, ctrl, alt, shift) = crate::win::modifiers_down();
+        Some(Mods {
+            meta,
+            ctrl,
+            alt,
+            shift,
+        })
+    }
+    // macOS has the same failure in principle, but nothing there takes the
+    // keyboard away mid-chord the way the secure desktop does, and it cannot
+    // be tested from here. Left on tracked state deliberately.
+    #[cfg(not(target_os = "windows"))]
+    {
+        None
+    }
+}
+
 pub struct HookState {
+    /// Where the modifier state is seeded from when a capture starts.
+    /// Production asks the OS where it can; tests pass a source that returns
+    /// nothing, so the tracking logic stays checkable without a keyboard.
+    mod_source: fn() -> Option<Mods>,
     pub wand_on: AtomicBool,
     /// While true, keyboard events are swallowed and reported as chords.
     pub capture_keys: AtomicBool,
@@ -46,13 +74,38 @@ pub struct HookState {
 
 impl HookState {
     pub fn new() -> Arc<Self> {
+        Self::with_mod_source(os_mods)
+    }
+    fn with_mod_source(mod_source: fn() -> Option<Mods>) -> Arc<Self> {
         Arc::new(HookState {
+            mod_source,
             wand_on: AtomicBool::new(false),
             capture_keys: AtomicBool::new(false),
             capture_gen: AtomicU64::new(0),
             overlay_panel: AtomicBool::new(false),
             mods: Mutex::new(Mods::default()),
         })
+    }
+    /// A state that only ever trusts what it has tracked.
+    #[cfg(test)]
+    fn tracked_only() -> Arc<Self> {
+        Self::with_mod_source(|| None)
+    }
+
+    /// Start swallowing keys and reporting them as chords.
+    ///
+    /// The tracked modifier state is seeded from the OS here, and only here.
+    /// It cannot be re-read later: while capturing, the hook suppresses the
+    /// very events it reports, so the OS never learns those keys went down and
+    /// would answer "nothing is held" for every one of them. Seeding at the
+    /// start fixes the one thing tracking gets wrong — a release that never
+    /// arrived, which `Ctrl+Alt+Del` arranges by handing the machine to the
+    /// secure desktop — and leaves the tracking that works alone.
+    pub fn begin_capture(&self) {
+        if let Some(live) = (self.mod_source)() {
+            *self.mods.lock().unwrap() = live;
+        }
+        self.capture_keys.store(true, Ordering::SeqCst);
     }
 }
 
@@ -146,6 +199,9 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
     };
 
     let capturing = state.capture_keys.load(Ordering::SeqCst);
+    if capturing {
+        log::info!("hook saw {key:?} down={down} token={:?}", key_token(key));
+    }
 
     if key == Key::Escape {
         if capturing {
@@ -179,17 +235,18 @@ fn handle(state: &HookState, tx: &Sender<Msg>, event: &Event) -> bool {
             }
             if down {
                 if let Some(key) = key_token(other) {
+                    let held = *m;
                     let mut mods = vec![];
-                    if m.meta {
+                    if held.meta {
                         mods.push("Cmd".to_string());
                     }
-                    if m.ctrl {
+                    if held.ctrl {
                         mods.push("Ctrl".to_string());
                     }
-                    if m.alt {
+                    if held.alt {
                         mods.push("Alt".to_string());
                     }
-                    if m.shift {
+                    if held.shift {
                         mods.push("Shift".to_string());
                     }
                     let _ = tx.send(Msg::KeyChord { mods, key });
@@ -208,13 +265,28 @@ pub fn spawn(state: Arc<HookState>, tx: Sender<Msg>) {
         .spawn(move || {
             let st = state.clone();
             let tx2 = tx.clone();
-            let res = rdev::grab(move |event: Event| {
+            let cb = move |event: Event| {
                 if handle(&st, &tx2, &event) {
                     Some(event)
                 } else {
                     None
                 }
-            });
+            };
+            log::info!("installing keyboard hook");
+            #[cfg(target_os = "windows")]
+            let res = rdev::grab_keys(cb);
+            #[cfg(not(target_os = "windows"))]
+            let res = rdev::grab(cb);
+            // `grab` pumps messages for the life of the process, so returning
+            // at all means the hook is gone: no chord will ever be reported and
+            // Escape will not sheathe the wand. Say so — this went unnoticed
+            // once already because only the error arm was reported.
+            if res.is_ok() {
+                log::error!("keyboard hook ended on its own — shortcuts can no longer be recorded");
+                let _ = tx.send(Msg::HookError(
+                    "The keyboard hook stopped. Restart Wandful to record shortcuts again.".into(),
+                ));
+            }
             if let Err(e) = res {
                 log::error!(
                     "grab failed: {e:?} — falling back to listen (keys can't be swallowed)"
@@ -251,7 +323,7 @@ mod tests {
     }
     fn setup() -> (Arc<HookState>, Sender<Msg>, Receiver<Msg>) {
         let (tx, rx) = channel();
-        (HookState::new(), tx, rx)
+        (HookState::tracked_only(), tx, rx)
     }
     fn chord(rx: &Receiver<Msg>) -> Option<(Vec<String>, String)> {
         match rx.try_recv() {
@@ -310,6 +382,31 @@ mod tests {
         st.capture_keys.store(true, Ordering::SeqCst);
         assert!(!handle(&st, &tx, &ev(Key::KeyZ, true)));
         assert_eq!(chord(&rx), Some((vec![], "Z".into())));
+    }
+
+    /// The bug `Ctrl+Alt+Del` causes: Ctrl and Alt go down, the kernel takes
+    /// Del, the secure desktop takes the machine, and the two releases happen
+    /// where no hook can see them. Tracked state alone would then put
+    /// `Ctrl+Alt` on every chord for the rest of the session.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_release_the_hook_never_saw_does_not_haunt_later_chords() {
+        let (tx, rx) = channel();
+        let st = HookState::new(); // the real, OS-backed source
+        st.begin_capture();
+        handle(&st, &tx, &ev(Key::ControlLeft, true));
+        handle(&st, &tx, &ev(Key::Alt, true));
+        // ... the releases happen on the secure desktop and never arrive ...
+        // The user gives up and records something else: a fresh capture, which
+        // is where the stale state has to be thrown away.
+        st.begin_capture();
+        handle(&st, &tx, &ev(Key::KeyD, true));
+        let (mods, key) = chord(&rx).expect("a chord was reported");
+        assert_eq!(key, "D");
+        assert!(
+            mods.is_empty(),
+            "stale modifiers leaked into the chord: {mods:?}"
+        );
     }
 
     #[test]

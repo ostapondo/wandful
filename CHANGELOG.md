@@ -10,6 +10,55 @@ may change the spellbook format — the changelog says so when they do.
 ### Added
 - Homebrew cask: `brew install --cask ostapondo/tap/wandful`. The tap is
   updated by CI when a release is published (`scripts/make-cask.sh` by hand).
+- Windows is built, tested and shipped again: `windows-latest` is back in CI
+  and `.exe` / `.msi` installers are back in the release matrix.
+- Windows: a cast aimed at a window running as administrator says so instead
+  of failing silently — a normal-privilege hook cannot reach one.
+- Windows: a third kind of spell, **System** — lock the screen, Task Manager,
+  switch user, sign out, sleep. `Ctrl+Alt+Del` cannot be recorded or sent by
+  any application, so these call the APIs behind its menu items instead.
+- Windows: the spellbook has one title bar instead of two. The native frame is
+  gone and the app's own bar carries minimize, maximize and close, the way the
+  macOS window already overlays its traffic lights.
+
+### Changed
+- Shortcuts are **built, not captured**. Clicking the shortcut field opens a
+  panel: click the keys, or press the combination, and each one appears as a
+  chip you can remove. Nothing listens globally, so combinations the OS acts on
+  or hides from hooks can be entered like any other — and one that could never
+  be delivered is refused with the reason instead of saved as a dead spell.
+
+### Fixed
+- Windows: a shortcut whose key was punctuation (`` ` ``, `-`, `/`, …) was
+  typed as text instead of pressed, so its modifiers were dropped and the
+  shortcut never fired. Those keys are sent as virtual keys now.
+- Windows: a **System** spell could not be saved — the backend asked every
+  spell that was not an app for a shortcut, and a system spell has none.
+- Windows: the keyboard hook never received a single key. `rdev`'s Windows
+  `grab` pumped one message instead of looping, so the thread that owned the
+  hook ended and Windows unhooked it — silently, because only the error arm was
+  reported. It also installed a mouse hook that fires on every pointer move,
+  which is enough to have the whole chain dropped for overrunning
+  `LowLevelHooksTimeout`. Both are patched in `vendor/rdev`.
+- Recording a shortcut no longer goes quietly deaf. The keyboard is released
+  after 30 seconds rather than 8, and when that happens the button stops
+  saying "Press keys…" instead of sitting over a keyboard nobody is reading.
+- Windows: pressing `Ctrl+Alt+Del` while recording a shortcut no longer leaves
+  `Ctrl` and `Alt` stuck on every chord recorded afterwards. The kernel takes
+  the sequence and the two releases happen on the secure desktop, where no hook
+  can see them. Each recording now seeds its modifier state from the OS before
+  it starts listening.
+
+### Changed
+- Windows: the app underneath gets focus back after the overlay's new-spell
+  panel closes, so the next cast lands where it was aimed rather than in
+  Wandful.
+- Windows: app icons come from the shell at up to 256px, instead of a 32px
+  icon fetched by starting PowerShell once per app.
+- Windows: opening an app no longer flashes a console window on the way.
+- Windows: the status line says "tray icon" rather than "menu-bar icon".
+- Windows: the log moved to `%LOCALAPPDATA%\Wandful\logs\wandful.log`, which
+  exists whether or not a shell set `HOME`.
 
 ## [0.0.1] — 2026-08-18
 

@@ -17,7 +17,20 @@ body {
 .titlebar .title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; letter-spacing: .1px; color: var(--text); }
 .titlebar .title span { opacity: .9; }
 #brand-wand { width: 22px; height: 22px; image-rendering: pixelated; }
-body.win .titlebar { padding-left: 16px; }
+body.win .titlebar { padding-left: 16px; padding-right: 0; }
+
+/* Caption buttons (Windows: the window is undecorated, so these are ours).
+   46x32 is the system metric; matching it keeps the corner hit target where
+   the muscle memory expects it. */
+.tb-controls { display: flex; align-items: stretch; align-self: stretch; margin-left: 6px; }
+.tb-controls .cap { width: 46px; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent;
+  color: var(--text); opacity: .75; display: inline-flex; align-items: center; justify-content: center;
+  transition: background .12s ease, opacity .12s ease; }
+.tb-controls .cap:hover { background: rgba(255,255,255,.08); opacity: 1; }
+.tb-controls .cap:active { background: rgba(255,255,255,.04); }
+.tb-controls .cap.close:hover { background: #c42b1c; color: #fff; }
+.tb-controls .cap.close:active { background: #b12a1b; }
+.tb-controls .cap svg { shape-rendering: crispEdges; }
 
 .wand-state { font-size: 12px; color: var(--muted); }
 .wand-state.on { color: var(--gold); }
@@ -92,3 +105,28 @@ body.win .titlebar { padding-left: 16px; }
 .spell .keys img, .appchip img { width: 16px; height: 16px; border-radius: 4px; vertical-align: -3px; margin-right: 4px; }
 .keybtn img { width: 16px; height: 16px; border-radius: 4px; }
 .sheet-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); margin-top: 4px; }
+
+/* shortcut picker: chips with a remove cross, then a keyboard to click */
+.picker-veil { position: fixed; inset: 0; z-index: 20; background: rgba(5,5,6,.6); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; }
+.picker { width: 560px; max-width: calc(100% - 40px); max-height: calc(100% - 60px); overflow: auto; outline: none;
+  background: #131316; border: 1px solid var(--line-2); border-radius: 12px; padding: 14px 16px 12px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.picker-chord { min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 8px 10px; margin-bottom: 12px;
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px; }
+.picker-chord .dim { color: var(--muted); font-size: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 2px; }
+.chip .plus { font-style: normal; color: var(--muted); margin: 0 4px; }
+.chip-x { width: 16px; height: 16px; margin-left: 2px; padding: 0; border: 0; border-radius: 50%; background: transparent;
+  color: var(--muted); font-size: 13px; line-height: 1; opacity: 0; transition: opacity .12s ease, background .12s ease; }
+.chip:hover .chip-x { opacity: 1; }
+.chip-x:hover { background: rgba(255,255,255,.12); color: var(--text); }
+.picker-mods { display: flex; gap: 6px; margin-bottom: 12px; }
+.picker-group { margin-bottom: 10px; }
+.picker-group-label { display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.picker-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.keycap { min-width: 30px; height: 28px; padding: 0 7px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2);
+  color: var(--text); font-size: 12px; }
+.keycap:hover { border-color: rgba(167,139,250,.5); background: rgba(167,139,250,.14); }
+.keycap.on { background: rgba(167,139,250,.28); border-color: rgba(167,139,250,.7); color: #fff; }
+.picker-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.picker-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.picker .primary:disabled { opacity: .45; cursor: not-allowed; }

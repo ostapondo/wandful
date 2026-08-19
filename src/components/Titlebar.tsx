@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useApp } from "../state/app";
+import { selectIsMac, useApp } from "../state/app";
+import { CaptionButtons } from "./CaptionButtons";
 import { Wand, fitCanvas } from "../wand/wand";
 import { useFrameLoop } from "./hooks";
 
@@ -28,6 +29,9 @@ function BrandWand() {
 export function Titlebar() {
   const wandOn = useApp((s) => s.wandOn);
   const openSettings = useApp((s) => s.openSettings);
+  // macOS overlays its traffic lights on this bar; elsewhere the window is
+  // undecorated and the buttons are ours to draw.
+  const mac = useApp(selectIsMac);
   return (
     <div className="titlebar" data-tauri-drag-region>
       <div className="title" data-tauri-drag-region>
@@ -41,6 +45,7 @@ export function Titlebar() {
         <button id="open-settings" className="icon-btn" title="Settings" onClick={() => openSettings(true)}>
           ⚙ Settings
         </button>
+        {!mac && <CaptionButtons />}
       </div>
     </div>
   );

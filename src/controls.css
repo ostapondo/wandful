@@ -16,6 +16,9 @@
   --danger: #fb7185;
   --radius: 10px;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  /* The one line that makes a native <select>'s drop-down dark instead of the
+     system's light grey. Everything else about it we draw ourselves. */
+  color-scheme: dark;
 }
 kbd { font-family: var(--font); font-size: 10.5px; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.08); border: 1px solid var(--line-2); color: var(--accent-2); }
 input[type="text"], .keybtn {
@@ -27,6 +30,15 @@ input::placeholder { color: var(--muted); }
 .keybtn { min-width: 170px; text-align: left; cursor: pointer; color: var(--muted); display: flex; gap: 4px; align-items: center; }
 .keybtn.set { color: var(--text); }
 .keybtn.listening { border-color: var(--accent); color: var(--accent-2); box-shadow: 0 0 0 3px rgba(167,139,250,.18); }
+/* A select styled as one of our own controls: no OS chrome, our chevron. */
+select.keybtn {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2386868f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+select.keybtn:hover { border-color: rgba(167,139,250,.5); }
+select.keybtn:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(167,139,250,.14); }
 .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; height: 34px; background: rgba(0,0,0,.28); }
 .seg button { font-family: var(--font); font-size: 12px; color: var(--muted); background: transparent; border: 0; padding: 0 12px; cursor: pointer; }
 .seg button.on { color: var(--text); background: rgba(167,139,250,.18); }

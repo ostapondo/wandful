@@ -8,6 +8,7 @@
 <p align="center">
   <img alt="Version" src="https://img.shields.io/github/v/release/ostapondo/wandful?style=flat-square&color=8b5cf6&label=version&include_prereleases">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-3a6bff?style=flat-square">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-3a6bff?style=flat-square">
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-ff4f81?style=flat-square">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-12d3a4?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-ffc531?style=flat-square">
@@ -43,10 +44,12 @@ Like BetterTouchTool's or StrokeMouse's gestures, but the shapes are yours and
 it only listens when you ask. If you like the metaphor: a shortcut is a
 *spell*, your set is the *spellbook*, drawing one is a *swish*.
 
-**It is early.** Version 0.0.1, one author, macOS only for now. The spellbook
-format may still change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it
-does. Windows compiles but is untested on real hardware, and Linux is not
-built or tested — both are on [ROADMAP.md](ROADMAP.md).
+**It is early.** Version 0.0.1, one author. The spellbook format may still
+change before 1.0; [CHANGELOG.md](CHANGELOG.md) says when it does. macOS is
+where it has had the most use; Windows is built, shipped, held to the same CI
+and has been run on Windows 11, but it has had far less time in front of real
+people — a [bug report](https://github.com/ostapondo/wandful/issues) is the
+fastest way to change that. Linux is not built or tested; see [ROADMAP.md](ROADMAP.md).
 
 ## Install
 
@@ -61,6 +64,11 @@ open it, drag Wandful to Applications. Every file there is built by GitHub
 Actions and carries a provenance attestation you can check with
 `gh attestation verify <file> -R ostapondo/wandful`.
 
+**Windows**: the `.exe` (NSIS) or `.msi` installer from the same page, with the
+same attestation. The installers are not code-signed, so SmartScreen warns on
+the first run — **More info** → **Run anyway**. Nothing else is asked for;
+Windows needs no permission grant for what Wandful does.
+
 Builds are not notarized (that needs a paid Apple account), so the first
 launch is right-click → **Open**, or `brew install --cask --no-quarantine …`.
 Then macOS asks once for Accessibility — see below.
@@ -69,7 +77,10 @@ Then macOS asks once for Accessibility — see below.
 
 **Prerequisites.** [Rust](https://rustup.rs) (stable), Node 20+, and the
 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) — on macOS
-that is Xcode Command Line Tools.
+that is Xcode Command Line Tools; on Windows the MSVC toolchain
+(`rustup default stable-msvc`) with the Visual Studio Build Tools "Desktop
+development with C++" workload, and WebView2, which Windows 11 ships with.
+The GNU toolchain does not link a Tauri app on Windows; use MSVC.
 
 ```sh
 git clone https://github.com/ostapondo/wandful && cd wandful
@@ -77,6 +88,7 @@ npm install
 npm run tauri dev        # run it
 npm run tauri build      # or build a real app
 # macOS:   src-tauri/target/release/bundle/macos/Wandful.app  (+ .dmg)
+# Windows: src-tauri/target/release/bundle/nsis/*.exe          (+ msi/*.msi)
 ```
 
 ### macOS: the Accessibility permission
@@ -98,6 +110,39 @@ npm run build:mac                 # tauri build + re-sign with that identity
 
 [SECURITY.md](SECURITY.md) says exactly what the permission is used for and
 what the app does not do.
+
+### Windows: what differs
+
+Nothing to grant — the low-level hooks Windows uses need no permission. Three
+things behave differently from macOS:
+
+- **A window running as administrator is out of reach.** A hook in a normal
+  process can neither see its keys nor type into it, and Windows gives no
+  error when it refuses. Wandful notices and says so instead of casting into
+  nothing. Start Wandful as administrator to reach those windows.
+- **The overlay covers the primary monitor.** Multi-monitor is on
+  [ROADMAP.md](ROADMAP.md).
+- **The wand never takes focus**, so summoning it does not interrupt what you
+  were typing. The new-spell panel is the exception — it needs the keyboard —
+  and it hands focus back to the app underneath when it closes.
+
+#### Shortcuts Windows keeps for itself
+
+Most combinations record and cast fine, including ones with the Windows key:
+while a spell is recording, Wandful swallows the keys, so `Win+D` is captured
+rather than acted on. Two kinds are different, and no application can change
+that:
+
+| Combination | Record | Cast | Why |
+|---|---|---|---|
+| `Ctrl+Alt+Del` | no | no | The Secure Attention Sequence. The kernel takes it before any hook sees it, and `SendInput` cannot produce it. This is what makes the sign-in screen impossible to spoof. |
+| `Win+L` | unreliable | no | Handled by the shell ahead of ordinary hooks. |
+
+For what people actually want from that screen, use a **System** spell instead
+of trying to fake the keys: it locks, signs out, switches user, opens Task
+Manager or sleeps by calling the same APIs those menu items do — no elevation,
+no policy change. Task Manager also works as an ordinary **Open app** spell
+pointing at `C:\Windows\System32\Taskmgr.exe`.
 
 ## Using it
 

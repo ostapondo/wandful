@@ -32,6 +32,33 @@ pub fn press(shortcut: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Punctuation as a virtual key, which is the only form that survives being
+/// held down with a modifier on Windows.
+///
+/// `Key::Unicode` makes enigo look the character up in the layout; when that
+/// fails it types the character as text instead, and text injection carries no
+/// modifiers — so `Ctrl+Win+\`` arrived as a lone backtick and did nothing.
+/// The OEM codes are positional and layout-independent, exactly like the
+/// letter keys beside them.
+#[cfg(target_os = "windows")]
+fn oem_key(token: &str) -> Option<Key> {
+    let vk: u32 = match token {
+        "`" => 0xC0,
+        "-" => 0xBD,
+        "=" => 0xBB,
+        "[" => 0xDB,
+        "]" => 0xDD,
+        ";" => 0xBA,
+        "'" => 0xDE,
+        "\\" => 0xDC,
+        "," => 0xBC,
+        "." => 0xBE,
+        "/" => 0xBF,
+        _ => return None,
+    };
+    Some(Key::Other(vk))
+}
+
 fn parse_key(token: &str) -> Option<Key> {
     let t = token.to_ascii_lowercase();
     Some(match t.as_str() {
@@ -73,6 +100,10 @@ fn parse_key(token: &str) -> Option<Key> {
         "f11" => Key::F11,
         "f12" => Key::F12,
         _ => {
+            #[cfg(target_os = "windows")]
+            if let Some(k) = oem_key(&t) {
+                return Some(k);
+            }
             let mut chars = t.chars();
             let c = chars.next()?;
             if chars.next().is_some() {
@@ -81,4 +112,42 @@ fn parse_key(token: &str) -> Option<Key> {
             Key::Unicode(c)
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn modifiers_and_plain_keys_parse() {
+        assert!(matches!(parse_key("ctrl"), Some(Key::Control)));
+        assert!(matches!(parse_key("shift"), Some(Key::Shift)));
+        assert!(matches!(parse_key("f5"), Some(Key::F5)));
+        assert!(matches!(parse_key("escape"), Some(Key::Escape)));
+        assert!(parse_key("nonsense").is_none());
+    }
+
+    #[test]
+    fn win_and_cmd_are_the_same_key() {
+        assert!(matches!(parse_key("win"), Some(Key::Meta)));
+        assert!(matches!(parse_key("cmd"), Some(Key::Meta)));
+    }
+
+    /// The bug this exists for: as `Key::Unicode`, punctuation was typed as
+    /// text and the modifiers were dropped, so the shortcut never fired.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn punctuation_becomes_a_virtual_key_not_text() {
+        for (token, vk) in [("`", 0xC0u32), ("-", 0xBD), ("/", 0xBF), (",", 0xBC)] {
+            match parse_key(token) {
+                Some(Key::Other(got)) => assert_eq!(got, vk, "wrong code for {token}"),
+                other => panic!("{token} parsed as {other:?}, not a virtual key"),
+            }
+        }
+    }
+
+    #[test]
+    fn letters_stay_unicode() {
+        assert!(matches!(parse_key("k"), Some(Key::Unicode('k'))));
+    }
 }

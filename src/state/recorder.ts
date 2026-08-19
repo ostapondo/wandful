@@ -57,5 +57,8 @@ export function installRecorder() {
     },
     true,
   );
+  // The backend stops swallowing the keyboard after a while; without this the
+  // button would go on saying "Press keys…" over a keyboard nobody is reading.
+  listen("wand:capture-ended", () => stopRecording());
   window.addEventListener("blur", stopRecording);
 }

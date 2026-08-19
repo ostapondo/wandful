@@ -70,3 +70,50 @@ describe("<SpellForm>", () => {
     expect(forge().kind).toBe("app");
   });
 });
+
+describe("<SpellForm> system actions", () => {
+  beforeEach(() => resetStores());
+
+  it("are offered off macOS and hidden on it", () => {
+    const { unmount } = render(<SpellForm />); // fixtures start on macOS
+    expect(screen.queryByText("System")).not.toBeInTheDocument();
+    unmount();
+    useApp.setState({ platform: { os: "windows", physical_coords: true } });
+    render(<SpellForm />);
+    expect(screen.getByText("System")).toBeInTheDocument();
+  });
+
+  it("need one picked before they save", () => {
+    useApp.setState({ platform: { os: "windows", physical_coords: true } });
+    render(<SpellForm />);
+    forge().setPoints(rune);
+    forge().setName("Lock it");
+    fireEvent.click(screen.getByText("System"));
+    forge().setSystem("");
+    fireEvent.click(screen.getByText("Save spell"));
+    expect(screen.getByText("Pick a system action")).toBeInTheDocument();
+  });
+
+  it("save the chosen action, and leave it behind when the kind changes", async () => {
+    useApp.setState({ platform: { os: "windows", physical_coords: true } });
+    render(<SpellForm />);
+    forge().setPoints(rune);
+    forge().setName("Task list");
+    fireEvent.click(screen.getByText("System"));
+    forge().setSystem("taskmgr");
+    fireEvent.click(screen.getByText("Save spell"));
+    await waitFor(() => expect(spells().some((s) => s.name === "Task list")).toBe(true));
+    const saved = spells().find((s) => s.name === "Task list")!;
+    expect(saved.action).toBe("system");
+    expect(saved.system).toBe("taskmgr");
+
+    // A shortcut spell must not carry a stale system action along with it.
+    forge().setPoints(rune);
+    forge().setName("Chord");
+    forge().setKind("shortcut");
+    forge().setShortcut("Ctrl+K");
+    fireEvent.click(screen.getByText("Save spell"));
+    await waitFor(() => expect(spells().some((s) => s.name === "Chord")).toBe(true));
+    expect(spells().find((s) => s.name === "Chord")!.system).toBe("");
+  });
+});

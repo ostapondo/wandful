@@ -5,10 +5,13 @@ None of it is a promise; an issue is where a line here becomes one.
 
 ## Now (0.1 → 0.2)
 
-- **Windows.** The code builds and the overlay, hook and casting are written
-  for it, but nobody has run it on a real Windows machine yet, so 0.0.1 ships
-  for macOS only. A report from Windows hardware brings it back into CI and
-  the release matrix — see the `needs-hardware` label.
+- **Windows.** Back in CI and the release matrix, and run on Windows 11 at
+  last: the hotkey summons and sheathes the overlay without taking focus from
+  the app underneath, the shell supplies icons and opens apps for `.exe`,
+  `.lnk` and folders alike, and a cast at an elevated window says so rather
+  than failing silently. Drawing a rune by hand, the shortcut recorder and
+  anything with a second monitor are still untested there — see the
+  `needs-hardware` label.
 - **Homebrew proper.** The cask lives in `ostapondo/tap` for now; the main
   `homebrew/cask` tap accepts a project once it has 75 GitHub stars (or 30
   forks / watchers), and the same file moves there.

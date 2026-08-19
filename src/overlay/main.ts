@@ -3,6 +3,7 @@
 // two small DOM pieces — the outcome chip under the stroke and the "New spell"
 // panel that binds a rune nobody recognised.
 import { api, listen } from "../api/tauri";
+import { systemLabel } from "../api/types";
 import type { ActionKind, CastResult, OverlayStyleEvent, Spell, WandModeEvent } from "../api/types";
 import { hexToRgba } from "../lib/color";
 import { chordLabel, keyTokens, prettyKey } from "../lib/keys";
@@ -103,7 +104,7 @@ window.addEventListener("pointerup", async (e) => {
   try {
     r = await api.cast(pts);
   } catch {
-    r = { matched: false, id: null, name: null, shortcut: null, action: null, app_name: null, score: 0 };
+    r = { matched: false, id: null, name: null, shortcut: null, action: null, app_name: null, system: null, score: 0 };
   }
   if (seq !== strokeSeq) return; // a newer stroke has begun; this reply is history
   wand.end(r);
@@ -147,7 +148,13 @@ window.addEventListener("keydown", (e) => {
 
 const chip = $<HTMLDivElement>("chip");
 
-function actionBadge(r: { action: string | null; shortcut: string | null; app_name: string | null }): string {
+function actionBadge(r: {
+  action: string | null;
+  shortcut: string | null;
+  app_name: string | null;
+  system: string | null;
+}): string {
+  if (r.action === "system") return `<span class="appchip">⚙ ${esc(systemLabel(r.system ?? ""))}</span>`;
   if (r.action === "app") return `<span class="appchip">${esc(r.app_name ?? "app")}</span>`;
   const chord = r.shortcut ?? "";
   if (!chord) return "";
@@ -322,6 +329,7 @@ async function save() {
     action: kind,
     app_path: app.path,
     app_name: app.name,
+    system: "",
     points: pending,
     enabled: true,
   };
@@ -348,6 +356,7 @@ async function save() {
     shortcut: spell.shortcut,
     action: kind,
     app_name: app.name,
+    system: null,
     score: 1,
   });
   clearTimeout(sheatheTimer);

@@ -13,6 +13,7 @@ type ForgeState = {
   kind: ActionKind;
   shortcut: string;
   app: { path: string; name: string };
+  system: string;
   points: Pt[];
   msg: { text: string; ok: boolean };
   command: ForgeCommand;
@@ -21,6 +22,7 @@ type ForgeState = {
   setKind: (kind: ActionKind) => void;
   setShortcut: (shortcut: string) => void;
   setApp: (path: string, name: string) => void;
+  setSystem: (system: string) => void;
   setPoints: (points: Pt[]) => void;
   setMsg: (text: string, ok?: boolean) => void;
   resetForge: () => void;
@@ -38,6 +40,7 @@ export const useForge = create<ForgeState>((set) => ({
   kind: "shortcut",
   shortcut: "",
   app: { path: "", name: "" },
+  system: "lock",
   points: [],
   msg: { text: "", ok: false },
   command: { seq: 0, kind: "clear" },
@@ -46,6 +49,7 @@ export const useForge = create<ForgeState>((set) => ({
   setKind: (kind) => set({ kind }),
   setShortcut: (shortcut) => set({ shortcut }),
   setApp: (path, name) => set({ app: { path, name } }),
+  setSystem: (system) => set({ system }),
   setPoints: (points) => set({ points }),
   setMsg: (text, ok = false) => set({ msg: { text, ok } }),
   resetForge: () =>
@@ -55,6 +59,7 @@ export const useForge = create<ForgeState>((set) => ({
       kind: "shortcut",
       shortcut: "",
       app: { path: "", name: "" },
+      system: "lock",
       points: [],
       msg: { text: "", ok: false },
       command: cmd({ kind: "clear" }),
@@ -64,9 +69,10 @@ export const useForge = create<ForgeState>((set) => ({
     set({
       editingId: s.id,
       name: s.name,
-      kind: s.action === "app" ? "app" : "shortcut",
+      kind: s.action === "app" || s.action === "system" ? s.action : "shortcut",
       shortcut: s.shortcut,
       app: { path: s.app_path ?? "", name: s.app_name ?? "" },
+      system: s.system || "lock",
       points: fitted,
       msg: { text: "", ok: false },
       command: cmd({ kind: "replay", pts: fitted }),

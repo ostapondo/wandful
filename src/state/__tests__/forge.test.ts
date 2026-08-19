@@ -9,6 +9,7 @@ const spell: Spell = {
   action: "shortcut",
   app_path: "",
   app_name: "",
+  system: "",
   points: [
     [0, 0],
     [10, 10],
