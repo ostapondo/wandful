@@ -1,7 +1,7 @@
 {
   "name": "wandful",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Mouse gestures that fire keyboard shortcuts: draw a shape, the shortcut you bound to it is typed into the app you were in",
   "license": "MIT",
   "repository": {

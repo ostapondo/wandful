@@ -7,6 +7,10 @@ may change the spellbook format — the changelog says so when they do.
 
 ## [Unreleased]
 
+## [0.0.2] — 2026-08-19
+
+Windows, for real this time: built, run on hardware, and shipped.
+
 ### Added
 - Homebrew cask: `brew install --cask ostapondo/tap/wandful`. The tap is
   updated by CI when a release is published (`scripts/make-cask.sh` by hand).
@@ -124,5 +128,6 @@ First tagged build. Everything below is new.
   Cast and fizzle outcomes show as a quiet chip under the stroke; the rune
   itself is drawn on the same pixel grid as the sparks.
 
-[Unreleased]: https://github.com/ostapondo/wandful/compare/v0.0.1...main
+[Unreleased]: https://github.com/ostapondo/wandful/compare/v0.0.2...main
+[0.0.2]: https://github.com/ostapondo/wandful/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/ostapondo/wandful/releases/tag/v0.0.1
