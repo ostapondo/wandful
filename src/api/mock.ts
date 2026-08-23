@@ -67,6 +67,7 @@ let book: Book = {
   hotkey: "CmdOrCtrl+Shift+M",
   overlay_color: "#050506",
   overlay_opacity: 0.9,
+  launch_at_login: false,
 };
 let wand = false;
 
@@ -98,7 +99,14 @@ export async function mockInvoke(cmd: string, args: any = {}): Promise<any> {
     case "app_icon":
       return null;
     case "reset_settings":
-      book = { ...book, threshold: 0.8, hotkey: "CmdOrCtrl+Shift+M", overlay_color: "#050506", overlay_opacity: 0.9 };
+      book = {
+        ...book,
+        threshold: 0.8,
+        hotkey: "CmdOrCtrl+Shift+M",
+        overlay_color: "#050506",
+        overlay_opacity: 0.9,
+        launch_at_login: false,
+      };
       return book;
     case "save_spell": {
       const sp = { ...args.spell, id: args.spell.id || String(Date.now()) };

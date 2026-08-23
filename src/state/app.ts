@@ -27,7 +27,14 @@ let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const useApp = create<AppState>((set) => ({
   platform: { os: "macos", physical_coords: false },
-  book: { spells: [], threshold: 0.8, hotkey: "CmdOrCtrl+Shift+M", overlay_color: "#050506", overlay_opacity: 0.9 },
+  book: {
+    spells: [],
+    threshold: 0.8,
+    hotkey: "CmdOrCtrl+Shift+M",
+    overlay_color: "#050506",
+    overlay_opacity: 0.9,
+    launch_at_login: false,
+  },
   wandOn: false,
   needsAccessibility: false,
   // Written once the platform is known (it names the tray icon); until then
