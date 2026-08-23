@@ -7,9 +7,15 @@ may change the spellbook format — the changelog says so when they do.
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-23
+
 ### Added
 - Settings: **Start at login** — a checkbox that adds or removes an
   unprivileged login item, off by default. See SECURITY.md.
+
+### Fixed
+- Windows: the icon reader used `chunks_exact_mut`, which stable clippy has
+  since learned to reject. No behaviour change; the build is green again.
 
 ## [0.0.2] — 2026-08-19
 
@@ -132,6 +138,7 @@ First tagged build. Everything below is new.
   Cast and fizzle outcomes show as a quiet chip under the stroke; the rune
   itself is drawn on the same pixel grid as the sparks.
 
-[Unreleased]: https://github.com/ostapondo/wandful/compare/v0.0.2...main
+[Unreleased]: https://github.com/ostapondo/wandful/compare/v0.1.0...main
+[0.1.0]: https://github.com/ostapondo/wandful/compare/v0.0.2...v0.1.0
 [0.0.2]: https://github.com/ostapondo/wandful/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/ostapondo/wandful/releases/tag/v0.0.1
