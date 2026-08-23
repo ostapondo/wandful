@@ -47,6 +47,7 @@ cask "wandful" do
   zap trash: [
     "~/Library/Application Support/com.ostap.wandful",
     "~/Library/Caches/com.ostap.wandful",
+    "~/Library/LaunchAgents/Wandful.plist",
     "~/Library/Preferences/com.ostap.wandful.plist",
     "~/Library/Saved Application State/com.ostap.wandful.savedState",
     "~/Library/WebKit/com.ostap.wandful",

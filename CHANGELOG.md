@@ -7,6 +7,10 @@ may change the spellbook format — the changelog says so when they do.
 
 ## [Unreleased]
 
+### Fixed
+- Homebrew cask: `brew zap` removes the login item too. Nothing wrote one
+  when the zap list was drawn up; 0.1.0 can.
+
 ## [0.1.0] — 2026-08-23
 
 ### Added
