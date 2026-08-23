@@ -53,6 +53,16 @@ describe("<SettingsSheet>", () => {
     await waitFor(() => expect(app().book.overlay_opacity).toBe(0.4));
   });
 
+  it("toggles start-at-login and saves it", async () => {
+    const { container } = render(<SettingsSheet />);
+    const check = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(check.checked).toBe(false);
+    fireEvent.click(check);
+    await waitFor(() => expect(app().book.launch_at_login).toBe(true));
+    fireEvent.click(check);
+    await waitFor(() => expect(app().book.launch_at_login).toBe(false));
+  });
+
   it("reset restores defaults and says so", async () => {
     useApp.setState({ book: { ...app().book, overlay_opacity: 0.3 } });
     render(<SettingsSheet />);
