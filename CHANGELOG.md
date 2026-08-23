@@ -7,6 +7,10 @@ may change the spellbook format — the changelog says so when they do.
 
 ## [Unreleased]
 
+### Added
+- Settings: **Start at login** — a checkbox that adds or removes an
+  unprivileged login item, off by default. See SECURITY.md.
+
 ## [0.0.2] — 2026-08-19
 
 Windows, for real this time: built, run on hardware, and shipped.
