@@ -480,7 +480,7 @@ fn icon_rgba(icon: HICON) -> Option<(u32, u32, Vec<u8>)> {
                 }
             }
             // GDI hands back BGRA; PNG wants RGBA.
-            for p in px.chunks_exact_mut(4) {
+            for p in px.as_chunks_mut::<4>().0 {
                 p.swap(0, 2);
             }
             Some((w, h, px))
