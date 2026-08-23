@@ -49,6 +49,9 @@ pub struct Book {
     pub overlay_color: String,
     #[serde(default = "default_overlay_opacity")]
     pub overlay_opacity: f64,
+    /// Start Wandful when the user logs in
+    #[serde(default)]
+    pub launch_at_login: bool,
 }
 fn default_overlay_color() -> String {
     "#050506".into()
@@ -71,6 +74,7 @@ impl Book {
         self.hotkey = default_hotkey();
         self.overlay_color = default_overlay_color();
         self.overlay_opacity = default_overlay_opacity();
+        self.launch_at_login = false;
     }
 
     pub fn load(path: &PathBuf) -> Book {
@@ -96,6 +100,7 @@ impl Book {
             hotkey: default_hotkey(),
             overlay_color: default_overlay_color(),
             overlay_opacity: default_overlay_opacity(),
+            launch_at_login: false,
         }
     }
 
