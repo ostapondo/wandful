@@ -8,6 +8,7 @@ export const emptyBook: Book = {
   hotkey: "CmdOrCtrl+Shift+M",
   overlay_color: "#050506",
   overlay_opacity: 0.9,
+  launch_at_login: false,
 };
 
 export const demoSpells: Spell[] = [
