@@ -106,6 +106,17 @@ function SettingsSheetBody() {
             onChord={(hotkey) => save({ hotkey })}
           />
         </label>
+        <label className="row-field">
+          <span>Start at login</span>
+          <span className="check-wrap">
+            <input
+              type="checkbox"
+              checked={book.launch_at_login}
+              onChange={(e) => save({ launch_at_login: e.target.checked })}
+            />
+            <small>Wandful is ready the moment you log in, wand sheathed.</small>
+          </span>
+        </label>
         <div className="row-field preview-row">
           <span>Preview</span>
           <div className="ov-preview">
