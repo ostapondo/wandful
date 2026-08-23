@@ -11,18 +11,24 @@ page is what you can check instead of trusting it, and where the checks stop.
 | --- | --- |
 | **Accessibility (macOS)** | Watch global mouse and keyboard events, so a right-button drag can become a gesture; and synthesize key presses, so a spell can cast a shortcut. Granted by you, revocable in System Settings → Privacy & Security. Without it the app runs listen-only |
 | **Windows** | A low-level keyboard hook needs no permission (there is no mouse hook: the overlay reads the mouse itself). Key synthesis cannot reach a window whose process runs at a higher integrity level — anything started as Administrator — unless Wandful was started that way too; a cast aimed at one says so instead of failing quietly |
-| **Disk** | The spellbook, `spellbook.json`, in the app config directory; a log file, `~/Library/Logs/Wandful/wandful.log` on macOS or `%LOCALAPPDATA%\Wandful\logs\wandful.log` on Windows; nothing else |
+| **Disk** | The spellbook, `spellbook.json`, in the app config directory; a log file, `~/Library/Logs/Wandful/wandful.log` on macOS or `%LOCALAPPDATA%\Wandful\logs\wandful.log` on Windows; and, only while **Start at login** is on in Settings, the login item below. Nothing else |
 | **Processes** | A spell can open an app or path you chose, via `open` (macOS) or `ShellExecute` (Windows). Only paths you saved in the spellbook |
 | **The session (Windows)** | A **System** spell calls one of five APIs behind the `Ctrl+Alt+Del` menu: lock the screen, sign out (`ExitWindowsEx`, which closes your apps), switch user, Task Manager, sleep. Only the five, only the one the spell names, and only when its rune is drawn. None of them needs elevation |
 | **Network** | None. Wandful makes no outbound connections and listens on no port |
 
 ## What it does not do
 
-There is no update check, no telemetry, no crash reporting, no login item, no
-helper daemon, no privileged tool, no installer script that runs anything. It
-is one binary in one bundle. Uninstalling is quitting it and dragging it to the
-trash; the config directory and the log directory are the only things it
-leaves behind.
+There is no update check, no telemetry, no crash reporting, no helper daemon,
+no privileged tool, no installer script that runs anything. It is one binary
+in one bundle. Uninstalling is quitting it and dragging it to the
+trash; the config directory, the log directory and — if you turned **Start at
+login** on — the login item are the only things it leaves behind.
+
+The login item is off until you tick that box, and it is a plain, unprivileged
+one: `~/Library/LaunchAgents/Wandful.plist` on macOS, a value under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. Untick the
+box and it is removed; it starts the same app bundle you already have, with no
+extra arguments and no daemon.
 
 The Tauri capability files, [`src-tauri/capabilities/default.json`](src-tauri/capabilities/default.json)
 and [`main.json`](src-tauri/capabilities/main.json), list every host API the
