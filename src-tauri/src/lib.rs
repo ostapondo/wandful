@@ -19,6 +19,7 @@ use tauri::menu::Submenu;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_autostart::ManagerExt as AutostartExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub struct AppState {
@@ -154,6 +155,7 @@ struct SettingsPatch {
     overlay_color: Option<String>,
     overlay_opacity: Option<f64>,
     hotkey: Option<String>,
+    launch_at_login: Option<bool>,
 }
 
 #[derive(Serialize, Clone)]
@@ -203,6 +205,17 @@ fn register_hotkey(app: &AppHandle, chord: &str) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
+/// Add/remove the login item. The book keeps the wish; the OS keeps the fact,
+/// so `setup` reconciles the two at every start.
+fn apply_launch_at_login(app: &AppHandle, on: bool) -> Result<(), String> {
+    let al = app.autolaunch();
+    if on {
+        al.enable().map_err(|e| e.to_string())
+    } else {
+        al.disable().map_err(|e| e.to_string())
+    }
+}
+
 #[tauri::command]
 fn set_settings(
     app: AppHandle,
@@ -229,6 +242,12 @@ fn set_settings(
             }
         }
     }
+    if let Some(l) = patch.launch_at_login {
+        if l != book.launch_at_login {
+            apply_launch_at_login(&app, l).map_err(|e| format!("Can't change login item: {e}"))?;
+            book.launch_at_login = l;
+        }
+    }
     book.save(&state.path)?;
     let _ = app.emit_to(
         "overlay",
@@ -246,6 +265,9 @@ fn set_settings(
 fn reset_settings(app: AppHandle, state: State<AppState>) -> Result<Book, String> {
     let mut book = state.book.lock().unwrap();
     book.reset_settings();
+    if let Err(e) = apply_launch_at_login(&app, book.launch_at_login) {
+        log::error!("login item reset failed: {e}");
+    }
     let _ = app.global_shortcut().unregister_all();
     if let Err(e) = register_hotkey(&app, &book.hotkey) {
         log::error!("hotkey re-register failed: {e}");
@@ -795,6 +817,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             get_platform,
             get_book,
@@ -821,6 +847,7 @@ pub fn run() {
             let path = app.path().app_config_dir()?.join("spellbook.json");
             let book = Book::load(&path);
             let hotkey = book.hotkey.clone();
+            let launch_at_login = book.launch_at_login;
             let hook = HookState::new();
             app.manage(AppState {
                 book: Mutex::new(book),
@@ -830,6 +857,12 @@ pub fn run() {
                 prev_app: Mutex::new(None),
                 icon_cache: Mutex::new(Default::default()),
             });
+
+            // The login item can be dropped behind our back (a move, a
+            // reinstall, System Settings); make the OS agree with the book.
+            if let Err(e) = apply_launch_at_login(&handle, launch_at_login) {
+                log::error!("login item sync failed: {e}");
+            }
 
             #[cfg(target_os = "macos")]
             {
