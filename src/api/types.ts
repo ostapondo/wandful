@@ -24,6 +24,7 @@ export type Book = {
   hotkey: string;
   overlay_color: string;
   overlay_opacity: number;
+  launch_at_login: boolean;
 };
 
 export type CastResult = {
@@ -39,7 +40,12 @@ export type CastResult = {
 
 export type Platform = { os: "macos" | "windows" | "linux"; physical_coords: boolean };
 
-export type SettingsPatch = { overlay_color?: string; overlay_opacity?: number; hotkey?: string };
+export type SettingsPatch = {
+  overlay_color?: string;
+  overlay_opacity?: number;
+  hotkey?: string;
+  launch_at_login?: boolean;
+};
 
 export type KeyChordEvent = { mods: string[]; key: string };
 export type WandModeEvent = { on: boolean };
