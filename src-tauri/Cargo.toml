@@ -39,7 +39,7 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSData", "NSString", "NSDictionary", "NSArray", "NSGeometry"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Security",
